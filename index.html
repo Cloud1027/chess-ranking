@@ -938,7 +938,7 @@ function toggleChart() { const c = document.getElementById('statsContainer'); c.
 function renderStatsChart() {
     let rw=0, bw=0, dr=0; sysData.pairings.forEach(p => { if(p.result===1 && !p.black.isBye) rw++; else if(p.result===0 && !p.black.isBye) bw++; else if(p.result===0.5) dr++; });
     const ctx = document.getElementById('winRateChart').getContext('2d'); if (winRateChart) winRateChart.destroy();
-    winRateChart = new Chart(ctx, { type: 'doughnut', data: { labels: ['紅勝', '黑勝', '和局'], datasets: [{ data: [rw, bw, dr], backgroundColor: ['#ef4444', '#3b82f6', '#10b981'] }] }, options: { plugins: { title: { display: true, text: `共 ${rw+bw+dr} 局` }, datalabels: { color: 'white', formatter: (v, ctx) => { let sum = 0; ctx.chart.data.datasets[0].data.map(d => sum+=d); return sum>0 ? (v*100/sum).toFixed(1)+"%" : "0%"; } } } } });
+    winRateChart = new Chart(ctx, { type: 'doughnut', data: { labels: ['紅勝', '黑勝', '和局'], datasets: [{ data: [rw, bw, dr], backgroundColor: ['#ef4444', '#3b82f6', '#10b981'] }] },  plugins: [ChartDataLabels],options: { plugins: { title: { display: true, text: `共 ${rw+bw+dr} 局` }, datalabels: { color: 'white', formatter: (v, ctx) => { let sum = 0; ctx.chart.data.datasets[0].data.map(d => sum+=d); return sum>0 ? (v*100/sum).toFixed(1)+"%" : "0%"; } } } } });
 }
 
 /* Print Module (Dynamic Colors) */
