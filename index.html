@@ -1,10 +1,10 @@
-<!-- START OF FILE 積分編排V10.12_Fix.html -->
+<!-- START OF FILE 積分編排V12.1_FixLogic.html -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>瑞士制積分編排系統 V10.12 (桌卡修正版)</title>
+<title>瑞士制積分編排系統 V12.1 (邏輯修正版)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
@@ -163,7 +163,7 @@ button:active { transform: scale(0.96); }
 <div class="container">
     <header>
         <h1 id="mainSystemTitle">瑞士制積分編排系統</h1>
-        <div class="subtitle">by 克勞德 </div>
+        <div class="subtitle">by 克勞德</div>
     </header>
 
     <div class="nav-pills">
@@ -175,7 +175,7 @@ button:active { transform: scale(0.96); }
 
     <!-- 1. 設定區 -->
     <div id="setup" class="section active">
-                <!-- 緊湊型賽制參數設定 -->
+        <!-- 緊湊型賽制參數設定 -->
         <div class="input-group">
             <h3>⚙️ 賽制參數</h3>
             <style>
@@ -415,7 +415,7 @@ button:active { transform: scale(0.96); }
 Chart.register(ChartDataLabels);
 
 let sysData = {
-    title:"瑞士制積分編排系統 V10.12", 
+    title:"瑞士制積分編排系統 V12.1", 
     pointsConfig:{win:2,draw:1,loss:0}, 
     players:[], pairings:[], currentRound:0, 
     signatures:{ref:"",dir:""}, 
@@ -480,7 +480,7 @@ function saveData(){
     updateTitleDisplay();
 }
 function updateTitleDisplay() {
-    const t = document.getElementById('compTitleInput').value.trim() || "瑞士制積分編排系統 V10.12";
+    const t = document.getElementById('compTitleInput').value.trim() || "瑞士制積分編排系統 V12.1";
     document.getElementById('mainSystemTitle').innerText = t; document.title = t; 
 }
 function toggleMenu(id) {
@@ -501,7 +501,7 @@ function showSection(id, btn){
 
 function resetSystem(){
     if(!confirm("⚠️ 確定重置？所有資料將消失！")) return;
-    sysData={title:"瑞士制積分編排系統 V10.12",pointsConfig:{win:2,draw:1,loss:0},players:[],pairings:[],currentRound:0,signatures:{ref:"",dir:""},settings:{oppScoreRounds:5, themeColor:'blue'}};
+    sysData={title:"瑞士制積分編排系統 V12.1",pointsConfig:{win:2,draw:1,loss:0},players:[],pairings:[],currentRound:0,signatures:{ref:"",dir:""},settings:{oppScoreRounds:5, themeColor:'blue'}};
     viewingRound=0; localStorage.removeItem('swiss_v10_11'); location.reload();
 }
 function initPlayers(){
@@ -540,6 +540,7 @@ function setRes(wId, r){
     } 
 }
 
+/* --- 配對核心邏輯 (已修正為嚴格不重複) --- */
 function generateNextRound(){
     if(viewingRound !== sysData.currentRound && sysData.currentRound > 0) return alert("請先切換至最新一輪");
     if(sysData.currentRound > 0){ 
@@ -548,39 +549,128 @@ function generateNextRound(){
             return alert(`第 ${unfinished[0].round} 輪還有成績未填寫！請檢查所有輪次。`);
         }
     }
+    
     updateScores();
-    sysData.currentRound++; viewingRound = sysData.currentRound; const rd = sysData.currentRound;
-    let pairings = []; let active = sysData.players.filter(p=>!p.isBye && !p.isWithdrawn);
-    if(rd === 1) {
-        active.sort((a,b) => a.number - b.number);
-        if(active.length % 2 !== 0) pairings.push({round:rd, white:active.pop(), black:sysData.players.find(p=>p.isBye), result:1});
-        while(active.length > 0) { let p1 = active.shift(); let p2 = active.shift(); if(p2) pairings.push({round:rd, white:p1, black:p2, result:null}); }
-    } else {
-        active.sort((a,b)=>(b.points-a.points)||(b.opponentPoints-a.opponentPoints)||(a.number-b.number));
-        if(active.length % 2 !== 0){
-            let byeIdx = active.length-1;
-            for(let i=active.length-1; i>=0; i--){ if(!active[i].results.includes("輪空勝")) { byeIdx = i; break; } }
-            pairings.push({round:rd, white:active.splice(byeIdx, 1)[0], black:sysData.players.find(p=>p.isBye), result:1});
+    sysData.currentRound++; 
+    viewingRound = sysData.currentRound; 
+    const rd = sysData.currentRound;
+    
+    let active = sysData.players.filter(p=>!p.isBye && !p.isWithdrawn);
+    
+    // 根據積分與對手分排序 (Swiss Standard)
+    active.sort((a,b)=>(b.points-a.points)||(b.opponentPoints-a.opponentPoints)||(a.number-b.number));
+    
+    let pairings = [];
+    let byePlayer = null;
+    
+    // 處理輪空 (若人數為奇數)
+    if(active.length % 2 !== 0) {
+        let byeIdx = active.length - 1;
+        // 尋找積分最低且尚未輪空過的人
+        for(let i=active.length-1; i>=0; i--){ 
+            if(!active[i].results.includes("輪空勝")) { 
+                byeIdx = i; 
+                break; 
+            } 
         }
-        while(active.length > 0){
-            let p1 = active.shift(); let bestOppIdx = -1; let minPenalty = Infinity;
-            for(let i=0; i<active.length; i++){
-                let p2 = active[i]; if(p1.opponents.includes(p2.number)) continue;
-                let penalty = Math.abs(p1.points - p2.points) * 10;
-                let t1 = getColorTrend(p1), t2 = getColorTrend(p2);
-                if((t1===1&&t2===1)||(t1===-1&&t2===-1)) penalty += 1000;
-                let bal1 = (p1.colors.filter(c=>c==='先').length) - (p1.colors.filter(c=>c==='後').length);
-                let bal2 = (p2.colors.filter(c=>c==='先').length) - (p2.colors.filter(c=>c==='後').length);
-                if (bal1 * bal2 > 0) penalty += 5;
-                if (penalty < minPenalty) { minPenalty = penalty; bestOppIdx = i; }
-                if (penalty === 0) break;
-            }
-            if(bestOppIdx === -1 && active.length > 0) bestOppIdx = 0;
-            if(bestOppIdx !== -1) { let p2 = active.splice(bestOppIdx, 1)[0]; let asgn = assignColors(p1, p2); pairings.push({round:rd, white:asgn.w, black:asgn.b, result:null}); }
-        }
+        byePlayer = active.splice(byeIdx, 1)[0];
     }
-    sysData.pairings.push(...pairings); saveData(); renderPairingList(); updateButtonsState();
+
+    // --- 核心：回溯法配對求解器 (避免 Greedy Algorithm 死路) ---
+    
+    // 計算配對懲罰值 (越低越好)
+    function calcPenalty(p1, p2) {
+        let scoreDiff = Math.abs(p1.points - p2.points);
+        let penalty = scoreDiff * 10000; // 積分差距權重極大，優先同分對抗
+        
+        // 顏色連續懲罰
+        let t1 = getColorTrend(p1), t2 = getColorTrend(p2);
+        if((t1 === 1 && t2 === 1) || (t1 === -1 && t2 === -1)) penalty += 50; // 兩人都連兩先或連兩後
+        
+        // 顏色平衡懲罰
+        let bal1 = (p1.colors.filter(c=>c==='先').length) - (p1.colors.filter(c=>c==='後').length);
+        let bal2 = (p2.colors.filter(c=>c==='先').length) - (p2.colors.filter(c=>c==='後').length);
+        if (bal1 * bal2 > 0) penalty += 20; // 兩人都已經多先或多後
+        
+        return penalty;
+    }
+
+    // 遞迴求解函數
+    function solveSwiss(currentPlayers, forbidRepeats) {
+        if (currentPlayers.length === 0) return [];
+
+        let p1 = currentPlayers[0];
+        let candidates = [];
+
+        for (let i = 1; i < currentPlayers.length; i++) {
+            let p2 = currentPlayers[i];
+            
+            // 嚴格檢查重複對弈
+            if (forbidRepeats && p1.opponents.includes(p2.number)) continue;
+
+            candidates.push({ 
+                player: p2, 
+                idx: i, 
+                penalty: calcPenalty(p1, p2) 
+            });
+        }
+
+        // 依照懲罰值排序候選人 (最適合的排前面)
+        candidates.sort((a, b) => a.penalty - b.penalty);
+
+        for (let cand of candidates) {
+            let p2 = cand.player;
+            // 建立剩餘名單 (排除 p1 和 p2)
+            let remaining = currentPlayers.filter((_, index) => index !== 0 && index !== cand.idx);
+            
+            // 遞迴往下配對
+            let result = solveSwiss(remaining, forbidRepeats);
+            
+            if (result !== null) {
+                // 找到解了，回傳配對結果
+                let assigned = assignColors(p1, p2);
+                return [{ white: assigned.w, black: assigned.b, result: null }, ...result];
+            }
+        }
+        
+        // 若所有候選人都無法達成完全配對，回傳 null (Backtrack)
+        return null;
+    }
+
+    // 1. 嘗試「嚴格禁止重複」配對
+    let solvedPairs = solveSwiss(active, true);
+
+    // 2. 若無解 (代表可能循環賽已滿或極端狀況)，彈出提示並允許重複
+    if (solvedPairs === null) {
+        alert("⚠️ 系統提示：\n無法在「不重複對弈」的情況下完成所有配對。\n(可能已接近循環賽尾聲或對戰組合已耗盡)\n\n系統將允許重複對戰以繼續比賽。");
+        solvedPairs = solveSwiss(active, false);
+    }
+
+    // 3. 若還是無解 (理論上不應發生，除非人數有問題)
+    if (solvedPairs === null) {
+        alert("❌ 嚴重錯誤：無法產生配對，請檢查選手名單或手動配對。");
+        sysData.currentRound--; // 還原局數
+        viewingRound = sysData.currentRound;
+        return;
+    }
+
+    // 將配對結果加入系統資料
+    solvedPairs.forEach(p => p.round = rd);
+    
+    // 加入輪空者 (若有)
+    if (byePlayer) {
+        let byeDummy = sysData.players.find(p => p.isBye);
+        pairings.push({round: rd, white: byePlayer, black: byeDummy, result: 1});
+    }
+    
+    pairings.push(...solvedPairs);
+    sysData.pairings.push(...pairings); 
+    
+    saveData(); 
+    renderPairingList(); 
+    updateButtonsState();
 }
+
 function getColorTrend(p) { if(p.colors.length<2)return 0; let l1=p.colors[p.colors.length-1], l2=p.colors[p.colors.length-2]; return (l1==='先'&&l2==='先')?1:(l1==='後'&&l2==='後')?-1:0; }
 function assignColors(p1, p2) {
     let r1=p1.colors.filter(c=>c==='先').length, b1=p1.colors.filter(c=>c==='後').length;
@@ -736,7 +826,6 @@ function getPortraitPrintStyle(theme) {
             -webkit-print-color-adjust: exact; 
         }
 
-        /* ↓↓↓↓ 修改這裡 ↓↓↓↓ */
         .print-report-table td { 
             padding: 6px 2px; /* 稍微增加上下內距，讓字體有空間 */
             text-align: center; 
@@ -749,7 +838,6 @@ function getPortraitPrintStyle(theme) {
             line-height: 1.2; /* 放寬行高，避免字體被壓在下面 */
             white-space: nowrap; 
         }
-        /* ↑↑↑↑ 修改結束 ↑↑↑↑ */
 
         .print-report-table tr:nth-child(odd) td { background-color: #ffffff; }
         .print-report-table tr:nth-child(even) td { background-color: ${theme.row} !important; -webkit-print-color-adjust: exact; }
