@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>瑞士制積分編排系統 V14.2 (多組別版)</title>
+<title>瑞士制積分編排系統 V16.1 (優化版)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
@@ -77,7 +77,7 @@ button:active { transform: scale(0.96); }
 .btn-gray { background: #94a3b8; }
 .btn-outline { background: white; color: var(--text-sub); border: 2px solid #cbd5e1; box-shadow: none; }
 
-/* Action Bar (Modified for V14.2 Mobile Optimization) */
+/* Action Bar */
 .action-bar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; background: white; padding: 10px; border-radius: 16px; box-shadow: var(--shadow-md); border: 1px solid #e0f2fe; }
 .action-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
 .divider { width: 1px; background: #e2e8f0; height: 24px; margin: 0 5px; }
@@ -87,16 +87,13 @@ button:active { transform: scale(0.96); }
     .action-bar { flex-direction: column; align-items: stretch; gap: 10px; padding: 15px; }
     .action-group { display: grid; grid-template-columns: 1fr 1fr; width: 100%; gap: 10px; }
     .divider { display: none; }
-    /* 讓按鈕填滿網格 */
     .action-group button, .action-group > div { width: 100%; margin: 0; }
-    /* 下拉選單按鈕也要填滿 */
     .action-group > div > button { width: 100%; justify-content: center; }
 }
 
-/* Pairing Grid (Modified for V14.2 Card Fitting) */
+/* Pairing Grid */
 .pairing-grid { 
     display: grid; 
-    /* 修改: 將最小寬度從 340px 改為 290px，讓手機版能剛好塞入不被裁切 */
     grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); 
     gap: 15px; 
     margin-top: 15px; 
@@ -172,19 +169,14 @@ button:active { transform: scale(0.96); }
 }
 
 /* --- 動畫特效 (V16 增強版) --- */
-/* 1. 全螢幕過場遮罩 */
 #loadingOverlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(15, 23, 42, 0.95); /* 深色背景 */
+    background: rgba(15, 23, 42, 0.95);
     z-index: 9999; display: none;
     flex-direction: column; justify-content: center; align-items: center;
     backdrop-filter: blur(5px); color: white;
 }
-
-/* 脈衝圓圈動畫 */
-.spinner-box {
-    position: relative; width: 100px; height: 100px; margin-bottom: 20px;
-}
+.spinner-box { position: relative; width: 100px; height: 100px; margin-bottom: 20px; }
 .pulse-ring {
     position: absolute; width: 100%; height: 100%; border-radius: 50%;
     border: 4px solid var(--primary); opacity: 0;
@@ -192,43 +184,31 @@ button:active { transform: scale(0.96); }
 }
 .pulse-ring:nth-child(2) { animation-delay: 0.5s; }
 .pulse-ring:nth-child(3) { animation-delay: 1.0s; }
-
 @keyframes pulseScale {
     0% { transform: scale(0.1); opacity: 1; border-width: 4px; }
     100% { transform: scale(1.5); opacity: 0; border-width: 0px; }
 }
-
-/* 文字閃爍效果 */
 .loading-text {
     font-family: 'Roboto Mono', monospace;
-    font-size: 1.5rem; font-weight: bold;
-    color: var(--accent);
+    font-size: 1.5rem; font-weight: bold; color: var(--accent);
     text-shadow: 0 0 10px var(--primary);
 }
-.loading-sub {
-    margin-top: 10px; font-size: 0.9rem; color: #94a3b8;
-}
+.loading-sub { margin-top: 10px; font-size: 0.9rem; color: #94a3b8; }
 
-/* 2. 卡片瀑布流進場動畫 (大場面) */
 @keyframes cardEntrance {
     from { opacity: 0; transform: translateY(30px) scale(0.95); }
     to { opacity: 1; transform: translateY(0) scale(1); }
 }
-
 .card-animate-enter {
     animation: cardEntrance 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-    opacity: 0; /* 預設隱藏，等動畫開始 */
+    opacity: 0;
 }
-
-/* 3. 輸入成績時的微動特效 (解決全場亂跳問題) */
 @keyframes pulseSmall {
     0% { transform: scale(1); }
     50% { transform: scale(1.02); box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); }
     100% { transform: scale(1); }
 }
-.card-update-pulse {
-    animation: pulseSmall 0.3s ease-out;
-}
+.card-update-pulse { animation: pulseSmall 0.3s ease-out; }
 </style>
 </head>
 <body class="theme-blue">
@@ -237,7 +217,8 @@ button:active { transform: scale(0.96); }
 <div class="group-bar">
     <div class="current-group-display" onclick="openGroupManager()">
         <span class="group-indicator"></span>
-        <span id="topGroupName">預設組別</span>
+        <!-- 修改: 固定顯示「切換組別」，但顏色會跟隨 CSS 變數 -->
+        <span id="topGroupName">切換組別</span>
         <span style="font-size:0.8rem; color:#999">▼</span>
     </div>
 </div>
@@ -317,7 +298,6 @@ button:active { transform: scale(0.96); }
         
         <div class="action-bar">
             <div class="action-group">
-                <!-- 修改: 使用新的帶動畫配對函式 -->
                 <button class="btn-blue" onclick="generateNextRoundWithEffect()" id="genBtn">⚡配對新輪</button>
                 <button class="btn-red" onclick="deleteLastRound()" id="undoBtn" style="display:none">🔙刪除此輪</button>
                 <button class="btn-orange" onclick="toggleManualMode()" id="manualModeBtn">🛠️調動選手</button>
@@ -391,7 +371,6 @@ button:active { transform: scale(0.96); }
         <div class="modal-body">
             <div style="margin-bottom:20px; display:flex; gap:10px;">
                 <button class="btn-primary" style="flex:1" onclick="createNewGroup()">+ 新增組別</button>
-                <!-- <button class="btn-outline" onclick="exportAllGroups()">📦 備份全部</button> -->
             </div>
             <div id="groupListContainer">
                 <!-- Groups will be rendered here -->
@@ -473,7 +452,7 @@ button:active { transform: scale(0.96); }
 </div>
 <div id="printSection"></div>
 
-<!-- 新增: 過場動畫遮罩層 -->
+<!-- 過場動畫遮罩層 -->
 <div id="loadingOverlay">
     <div class="spinner-box">
         <div class="pulse-ring"></div>
@@ -489,10 +468,9 @@ button:active { transform: scale(0.96); }
 const STORE_PREFIX = 'swiss_v13_';
 const MASTER_INDEX_KEY = 'swiss_v13_master_index';
 
-let groups = []; // [{id: 'g1', name: '公開組', color: 'blue', lastModified: timestamp}]
+let groups = [];
 let activeGroupId = null;
 
-// Current active data (replaces global sysData)
 let sysData = {
     title: "未命名比賽",
     pointsConfig: {win:2, draw:1, loss:0},
@@ -506,7 +484,6 @@ window.onload = function(){
     loadGroupSystem();
     updateButtonsState();
     
-    // Close menus when clicking outside
     window.onclick = function(event) {
         if (!event.target.matches('.btn-teal') && !event.target.matches('.btn-purple')) {
             document.getElementById('menuPre').style.display = "none";
@@ -516,12 +493,10 @@ window.onload = function(){
 };
 
 function loadGroupSystem() {
-    // 1. Load Master Index
     const indexJson = localStorage.getItem(MASTER_INDEX_KEY);
     if (indexJson) {
         groups = JSON.parse(indexJson);
     } else {
-        // First time V13 run: Check for V10/12 data to migrate
         const oldData = localStorage.getItem('swiss_v10_11');
         const defaultId = 'group_' + Date.now();
         let initialData = null;
@@ -540,13 +515,11 @@ function loadGroupSystem() {
         groups = [{ id: defaultId, name: groupName, color: groupColor, lastModified: Date.now() }];
         localStorage.setItem(MASTER_INDEX_KEY, JSON.stringify(groups));
         
-        // Save initial data to the new slot
         if (initialData) {
             localStorage.setItem(STORE_PREFIX + defaultId, JSON.stringify(initialData));
         }
     }
 
-    // 2. Set Active Group (Default to first one)
     if (groups.length > 0) {
         switchGroup(groups[0].id);
     }
@@ -557,7 +530,6 @@ function saveGroupsIndex() {
 }
 
 function switchGroup(groupId) {
-    // Save current group before switching
     if (activeGroupId) {
         saveCurrentGroupData();
     }
@@ -567,33 +539,32 @@ function switchGroup(groupId) {
 
     activeGroupId = groupId;
     
-    // Load data
     const dataJson = localStorage.getItem(STORE_PREFIX + groupId);
     if (dataJson) {
         try {
             sysData = JSON.parse(dataJson);
         } catch(e) {
             console.error("Data load error", e);
-            resetSysDataStruct(); // Fallback
+            resetSysDataStruct(); 
         }
     } else {
-        resetSysDataStruct(); // New empty group
+        resetSysDataStruct(); 
         sysData.title = targetGroup.name;
         sysData.settings.themeColor = targetGroup.color;
     }
 
-    // Apply Theme
     applyTheme(targetGroup.color);
     
-    // Update UI
-    document.getElementById('topGroupName').innerText = targetGroup.name;
+    // 修改: 不再改變頂部的文字，只改變顏色（通過 Theme），文字固定為「切換組別」
+    // document.getElementById('topGroupName').innerText = targetGroup.name; // 移除此行
+    
     document.querySelector('.group-indicator').style.backgroundColor = `var(--primary)`;
     updateUI();
     viewingRound = sysData.currentRound;
-    if (sysData.currentRound > 0) renderPairingList(true); // Fresh load, animate
-    else document.getElementById('pairingList').innerHTML = ''; // clear list
+    if (sysData.currentRound > 0) renderPairingList(true);
+    else document.getElementById('pairingList').innerHTML = ''; 
     
-    showSection('setup', document.querySelectorAll('.nav-item')[0]); // Reset view to setup
+    showSection('setup', document.querySelectorAll('.nav-item')[0]); 
 }
 
 function resetSysDataStruct() {
@@ -609,7 +580,6 @@ function resetSysDataStruct() {
 function saveCurrentGroupData() {
     if (!activeGroupId) return;
     
-    // Update sysData from inputs
     sysData.pointsConfig = {
         win: parseFloat(document.getElementById('ptWin').value)||2,
         draw: parseFloat(document.getElementById('ptDraw').value)||1,
@@ -620,10 +590,8 @@ function saveCurrentGroupData() {
     sysData.signatures = {ref:document.getElementById('refereeInput').value, dir:document.getElementById('directorInput').value};
     sysData.title = document.getElementById('compTitleInput').value.trim() || sysData.title;
 
-    // Save to LocalStorage
     localStorage.setItem(STORE_PREFIX + activeGroupId, JSON.stringify(sysData));
     
-    // Update Group Metadata (Name/Color might have changed in settings)
     const gIndex = groups.findIndex(g => g.id === activeGroupId);
     if (gIndex !== -1) {
         let changed = false;
@@ -634,7 +602,7 @@ function saveCurrentGroupData() {
             changed = true; 
         }
         if (changed) {
-            document.getElementById('topGroupName').innerText = groups[gIndex].name;
+            // document.getElementById('topGroupName').innerText = groups[gIndex].name; // 移除此行
             saveGroupsIndex();
         }
     }
@@ -644,7 +612,6 @@ function saveCurrentGroupData() {
 // --- Theme Management ---
 function applyTheme(colorName) {
     document.body.className = `theme-${colorName}`;
-    // Update Select in Setup
     document.getElementById('themeSelect').value = colorName;
 }
 function updateThemeFromSelect() {
@@ -661,7 +628,6 @@ function openGroupManager() {
         const div = document.createElement('div');
         div.className = `group-list-item ${g.id === activeGroupId ? 'active-group' : ''}`;
         
-        // Map color name to rough hex for the dot
         const colorMap = {blue:'#3b82f6', green:'#10b981', red:'#ef4444', orange:'#f59e0b', purple:'#8b5cf6', teal:'#06b6d4', dark:'#334155'};
         const dotColor = colorMap[g.color] || '#ccc';
         
@@ -695,7 +661,6 @@ function confirmCreateGroup() {
     groups.push({ id: newId, name: name, color: color, lastModified: Date.now() });
     saveGroupsIndex();
     
-    // Initialize empty data for new group
     const emptyData = {
         title: name,
         pointsConfig: {win:2, draw:1, loss:0},
@@ -712,22 +677,16 @@ function confirmCreateGroup() {
 
 function deleteGroup(id) {
     if (!confirm("⚠️ 確定刪除此組別？\n所有選手資料和成績將永久消失！")) return;
-    
-    // Remove from index
     groups = groups.filter(g => g.id !== id);
     saveGroupsIndex();
-    
-    // Remove data
     localStorage.removeItem(STORE_PREFIX + id);
-    
-    // If we deleted the active group, switch to another
     if (id === activeGroupId) {
         switchGroup(groups[0].id);
     }
-    openGroupManager(); // Refresh list
+    openGroupManager(); 
 }
 
-// --- Standard Swiss System Functions (Existing Logic) ---
+// --- Standard Swiss System Functions ---
 
 let viewingRound = 0;
 let winRateChart = null;
@@ -815,12 +774,11 @@ function setRes(wId, r){
         p.result = r; 
         updateScores(); 
         saveCurrentGroupData(); 
-        // 重點修正: 更新成績時不播放進場動畫 (animate=false)，並指定目標卡片(wId)進行微動
         renderPairingList(false, wId); 
     } 
 }
 
-// --- Core Pairing Logic (Same as V12) ---
+// --- Core Pairing Logic ---
 function generateNextRound(){
     if(viewingRound !== sysData.currentRound && sysData.currentRound > 0) return alert("請先切換至最新一輪");
     if(sysData.currentRound > 0){ 
@@ -941,17 +899,14 @@ function renderPairingList(animate = false, highlightNumber = null){
         const card = document.createElement('div'); 
         card.className = 'match-card-ui';
         
-        // --- V16 優化: 瀑布流動畫控制 ---
         if (animate) {
             card.classList.add('card-animate-enter');
-            // 前 12 桌逐一浮現 (0.1s 間隔)，第 13 桌後全部鎖定在 1.2s 出現
             let delay = 0;
             if (idx < 12) delay = idx * 0.1; 
             else delay = 1.2;
             card.style.animationDelay = `${delay}s`;
         }
 
-        // --- V16 優化: 單卡微動特效 (解決輸入成績全場亂跳問題) ---
         if (highlightNumber !== null && (p.white.number === highlightNumber || p.black.number === highlightNumber)) {
             card.classList.add('card-update-pulse');
         }
@@ -985,7 +940,7 @@ function toggleManualMode() {
     const ind = document.getElementById('swapIndicator');
     if(isManualMode) { btn.innerHTML = "✅ 完成"; btn.className = "btn-green"; ind.style.display = 'block'; ind.innerText = "請點擊第一位選手..."; }
     else { btn.innerHTML = "🛠️ 調動"; btn.className = "btn-orange"; ind.style.display = 'none'; }
-    renderPairingList(false); // 切換模式時保持靜止
+    renderPairingList(false); 
 }
 function handleManualSelect(pIdx, isWhite) {
     if(!isManualMode) return;
@@ -998,7 +953,11 @@ function handleManualSelect(pIdx, isWhite) {
     let playerTgt = isWhite ? pTgt.white : pTgt.black;
     if(swapSource.isWhite) pSrc.white = playerTgt; else pSrc.black = playerTgt;
     if(isWhite) pTgt.white = playerSrc; else pTgt.black = playerSrc;
-    pSrc.result=null; pTgt.result=null;
+    
+    // --- BUG FIX: 檢查是否移到了 Bye 位置 ---
+    if(pSrc.black.isBye || pSrc.white.isBye) { pSrc.result = 1; } else { pSrc.result = null; }
+    if(pTgt.black.isBye || pTgt.white.isBye) { pTgt.result = 1; } else { pTgt.result = null; }
+    
     saveCurrentGroupData(); swapSource=null; document.getElementById('swapIndicator').innerText = "交換成功！"; renderPairingList(false);
 }
 
@@ -1047,7 +1006,7 @@ function renderStatsChart() {
     winRateChart = new Chart(ctx, { type: 'doughnut', data: { labels: ['紅勝', '黑勝', '和局'], datasets: [{ data: [rw, bw, dr], backgroundColor: ['#ef4444', '#3b82f6', '#10b981'] }] },  plugins: [ChartDataLabels],options: { plugins: { title: { display: true, text: `共 ${rw+bw+dr} 局` }, datalabels: { color: 'white', formatter: (v, ctx) => { let sum = 0; ctx.chart.data.datasets[0].data.map(d => sum+=d); return sum>0 ? (v*100/sum).toFixed(1)+"%" : "0%"; } } } } });
 }
 
-/* Print Module (Dynamic Colors) */
+/* Print Module */
 const printThemes = {
     blue:   { head: '#1e40af', row: '#eff6ff' }, 
     green:  { head: '#047857', row: '#ecfdf5' }, 
@@ -1122,14 +1081,46 @@ function getRankingsHTML() {
 }
 
 function getSummaryHTML() {
-    updateScores(); let trs = sysData.currentRound || 1; const theme = getThemeColorObj();
-    let h = `<style>@page { size: landscape; margin: 5mm; } .print-report-table { width: 100%; border-collapse: collapse; font-family: "Noto Sans TC", sans-serif; margin-bottom: 5px; border: 2px solid #333; } .print-report-table th { background-color: ${theme.head} !important; color: white !important; padding: 4px 2px; text-align: center; font-size: 12pt; font-weight: 900; border: 1px solid #999; height: 28px; -webkit-print-color-adjust: exact; } .print-report-table td { padding: 1px 0px; text-align: center; font-size: 13.5pt; color: #000; border: 1px solid #ccc; font-weight: 600; height: 28px; line-height: 1.1; white-space: nowrap; } .print-report-table tr:nth-child(even) td { background-color: ${theme.row} !important; -webkit-print-color-adjust: exact; } .print-header { text-align: center; padding: 5px 0; border-bottom: 2px solid #ddd; margin-bottom: 5px; } .print-header h1 { font-size: 24pt; color: #111; margin: 0; line-height: 1.1; } .print-footer { display: flex; justify-content: space-between; margin-top: 5px; font-size: 10pt; font-weight: bold; padding: 2px; border-top: 1px solid #ccc; } .print-name-cell { font-size: 16pt !important; font-weight: 900 !important; } .rank-score { font-size: 18pt !important; font-weight: 900 !important; } .export-red-text { color: #dc2626 !important; font-weight: 900 !important; -webkit-print-color-adjust: exact; }</style>` + `
+    updateScores(); 
+    // 計算排名邏輯 (V16.1 新增)
+    let rankedList = [...sysData.players].filter(p=>!p.isBye).sort((a,b)=> {
+        if(b.points !== a.points) return b.points - a.points; 
+        if(b.opponentPoints !== a.opponentPoints) return b.opponentPoints - a.opponentPoints;
+        let h2h = getH2HWinner(a, b); if(h2h !== 0) return h2h;
+        if(b.wins !== a.wins) return b.wins - a.wins; 
+        if(b.bWins !== a.bWins) return b.bWins - a.bWins; 
+        if(b.bCnt !== a.bCnt) return b.bCnt - a.bCnt;
+        return b.sSOS - a.sSOS;
+    });
+    let rankMap = {};
+    rankedList.forEach((p, i) => rankMap[p.number] = i + 1);
+
+    let trs = sysData.currentRound || 1; 
+    const theme = getThemeColorObj();
+    
+    // V16.1 新增 .rank-badge 樣式 與 調整 footer 字體
+    let h = `<style>
+    @page { size: landscape; margin: 5mm; } 
+    .print-report-table { width: 100%; border-collapse: collapse; font-family: "Noto Sans TC", sans-serif; margin-bottom: 5px; border: 2px solid #333; } 
+    .print-report-table th { background-color: ${theme.head} !important; color: white !important; padding: 4px 2px; text-align: center; font-size: 12pt; font-weight: 900; border: 1px solid #999; height: 28px; -webkit-print-color-adjust: exact; } 
+    .print-report-table td { padding: 1px 0px; text-align: center; font-size: 13.5pt; color: #000; border: 1px solid #ccc; font-weight: 600; height: 28px; line-height: 1.1; white-space: nowrap; } 
+    .print-report-table tr:nth-child(even) td { background-color: ${theme.row} !important; -webkit-print-color-adjust: exact; } 
+    .print-header { text-align: center; padding: 5px 0; border-bottom: 2px solid #ddd; margin-bottom: 5px; } 
+    .print-header h1 { font-size: 24pt; color: #111; margin: 0; line-height: 1.1; } 
+    .print-footer { display: flex; justify-content: space-between; margin-top: 5px; font-size: 16pt; font-weight: bold; padding: 5px 10px; border-top: 1px solid #ccc; } 
+    .print-name-cell { font-size: 16pt !important; font-weight: 900 !important; } 
+    .rank-score { font-size: 18pt !important; font-weight: 900 !important; } 
+    .export-red-text { color: #dc2626 !important; font-weight: 900 !important; -webkit-print-color-adjust: exact; }
+    .rank-badge { background: #000; color: #fff; border-radius: 50%; width: 24px; height: 24px; display: inline-block; line-height: 24px; text-align: center; font-size: 11pt; font-weight: bold; -webkit-print-color-adjust: exact; }
+    </style>` + `
     <div class="print-header"><h1>${sysData.title} 成績總表</h1></div>
     <table class="print-report-table" style="width:100%">
-        <thead><tr><th colspan="5">基本資料</th>${Array.from({length:trs},(_,i)=>`<th colspan="3">第 ${i+1} 輪</th>`).join('')}</tr>
-        <tr><th>編號</th><th>姓名</th><th>積分</th><th>對手分</th><th>先手</th>${Array.from({length:trs},()=>`<th>對手</th><th>先後</th><th>結果</th>`).join('')}</tr></thead><tbody>`;
+        <thead><tr><th colspan="5">基本資料</th>${Array.from({length:trs},(_,i)=>`<th colspan="3">第 ${i+1} 輪</th>`).join('')}<th></th></tr>
+        <tr><th>編號</th><th>姓名</th><th>積分</th><th>對手分</th><th>先手</th>${Array.from({length:trs},()=>`<th>對手</th><th>先後</th><th>結果</th>`).join('')}<th>排名</th></tr></thead><tbody>`;
+    
     sysData.players.filter(p=>!p.isBye).forEach(p=>{
         let wCnt = p.colors.filter(c=>c==='先').length;
+        let rank = rankMap[p.number] || '-';
         h += `<tr><td>${p.number}</td><td class="print-name-cell">${p.name}</td><td class="rank-score export-red-text">${p.points}</td><td>${p.opponentPoints}</td><td>${wCnt}</td>`;
         for(let i=0; i<trs; i++){
             if(i<p.opponents.length){
@@ -1139,7 +1130,7 @@ function getSummaryHTML() {
                 h += `<td>${p.opponents[i]}</td><td style="${colorStyle}">${p.colors[i]}</td><td style="${resStyle}">${res}</td>`;
             } else h += '<td></td><td></td><td></td>';
         }
-        h += '</tr>';
+        h += `<td><span class="rank-badge">${rank}</span></td></tr>`;
     });
     h += `</tbody></table><div class="print-footer"><span>裁判長：${sysData.signatures.ref}</span><span>列印時間：${new Date().toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'})}</span><span>賽務長：${sysData.signatures.dir}</span></div>`;
     return h;
@@ -1245,7 +1236,6 @@ function importJSON(input) {
         try{
             sysData=JSON.parse(e.target.result);
             saveCurrentGroupData();
-            // Force refresh colors/UI
             const gIndex = groups.findIndex(g => g.id === activeGroupId);
             if(gIndex !== -1 && sysData.settings.themeColor) {
                 groups[gIndex].color = sysData.settings.themeColor;
@@ -1274,14 +1264,7 @@ function toggleStatus(n){ let p=sysData.players.find(x=>x.number===n); if(p){p.i
 function batchWithdraw(){ let v=parseFloat(document.getElementById('batchScoreInput').value); if(isNaN(v))return; let c=0; sysData.players.forEach(p=>{if(!p.isBye&&!p.isWithdrawn&&p.points<v){p.isWithdrawn=true;c++;}}); if(c>0){saveCurrentGroupData();openStatusModal();alert(`已退賽 ${c} 人`);} }
 function renderSummaryTable() { updateScores(); let t=document.getElementById('summaryTable'); let trs=sysData.currentRound||1; let h=`<thead><tr><th>編號</th><th>姓名</th><th>積分</th><th>對手分</th>`; for(let i=1;i<=trs;i++)h+=`<th>R${i}</th>`; h+='</tr></thead><tbody>'; sysData.players.filter(p=>!p.isBye).forEach(p=>{ h+=`<tr><td>${p.number}</td><td>${p.name}</td><td style="font-weight:bold;color:#ef4444">${p.points}</td><td>${p.opponentPoints}</td>`; for(let i=0;i<trs;i++){ if(i<p.opponents.length){ let res=p.results[i]; let color=res==='勝'?'#ef4444':(res==='負'?'#3b82f6':'#10b981'); h+=`<td>${p.colors[i]=="先"?"🔴":"⚫"}<span style="color:${color};font-weight:bold">${res}</span></td>`; }else h+='<td></td>'; } h+='</tr>'; }); t.innerHTML=h+'</tbody>'; }
 
-/* --- 新增: 帶動畫效果的配對函式 (V16) --- */
-const loadingMsgs = [
-    "正在計算積分權重...", "分析對手強弱係數...", "檢查同隊迴避規則...", 
-    "正在優化先後手平衡...", "生成對戰組合...", "校驗歷史對戰紀錄..."
-];
-
 async function generateNextRoundWithEffect() {
-    // 檢查原本的錯誤條件 (避免動畫跑了才說不能配對)
     if(viewingRound !== sysData.currentRound && sysData.currentRound > 0) return alert("請先切換至最新一輪");
     if(sysData.currentRound > 0){ 
         const unfinished = sysData.pairings.filter(p => p.round <= sysData.currentRound && p.result === null);
@@ -1291,11 +1274,9 @@ async function generateNextRoundWithEffect() {
     const overlay = document.getElementById('loadingOverlay');
     const mainTxt = document.getElementById('loadingMainText');
     const subTxt = document.getElementById('loadingSubText');
+    const loadingMsgs = ["正在計算積分權重...", "分析對手強弱係數...", "檢查同隊迴避規則...", "正在優化先後手平衡...", "生成對戰組合...", "校驗歷史對戰紀錄..."];
     
-    // 開始動畫
     overlay.style.display = 'flex';
-    
-    // 模擬運算過程 (共2秒，讓使用者看清楚文字)
     let step = 0;
     const interval = setInterval(() => {
         mainTxt.innerText = `PAIRING ROUND ${sysData.currentRound + 1}`;
@@ -1303,153 +1284,93 @@ async function generateNextRoundWithEffect() {
         step++;
     }, 250);
 
-    // 等待 2.0 秒後執行真正的配對
     await new Promise(r => setTimeout(r, 2000));
-    
     clearInterval(interval);
-    
-    // 執行原本的核心邏輯
     generateNextRound(); 
-    
-    // 結束動畫
     overlay.style.display = 'none';
 }
 </script>
 <script>
 /* --- 種子抽籤模組 (移植版) --- */
-
 function runSeedDraw() {
     const input = document.getElementById('playerInput');
     const txt = input.value.trim();
     if (!txt) return alert('請先輸入選手名單');
 
-    // 1. 解析名單 (保留原始名字，移除開頭的數字編號以免混淆)
-    let rawNames = txt.split('\n')
-        .map(n => n.replace(/^\d+[\.\s、]*/, '').trim())
-        .filter(n => n);
-
+    let rawNames = txt.split('\n').map(n => n.replace(/^\d+[\.\s、]*/, '').trim()).filter(n => n);
     if (rawNames.length < 2) return alert('選手人數不足');
 
-    // 2. 轉換為物件結構
-    let players = rawNames.map((name, i) => ({
-        name: name,
-        originalIndex: i,
-        type: getPlayerType(name),
-        level: getPlayerLevel(name)
-    }));
-
-    // 3. 執行核心抽籤邏輯
+    let players = rawNames.map((name, i) => ({ name: name, originalIndex: i, type: getPlayerType(name), level: getPlayerLevel(name) }));
     let result = performSeedDraw(players);
-    
-    // 4. 執行奇偶平衡調整 (針對最高段/S級)
     let adjustResult = adjustTopPlayerOddEven(result.arrangement);
     let finalArrangement = adjustResult.arrangement;
-
-    // 5. 更新輸入框 (重新編號)
     let newText = finalArrangement.map((p, i) => `${i + 1} ${p.name}`).join('\n');
     input.value = newText;
-
-    // 6. 生成並顯示報告
     showSeedReportModal(finalArrangement, result.score, adjustResult);
 }
 
-// --- 顯示報告 Modal ---
 function showSeedReportModal(arrangement, score, adjustResult) {
     let html = '';
-    
-    // 分析統計
     let danPlayers = arrangement.filter(p => p.type === 'dan');
     let sPlayers = arrangement.filter(p => p.type === 'letter' && p.level === 'S');
     
-    html += `<div style="background:#fff7ed; padding:10px; border-radius:8px; border:1px solid #fed7aa; margin-bottom:15px;">
-        <strong>📊 抽籤摘要</strong><br>
-        總人數：${arrangement.length} 人<br>`;
-    
+    html += `<div style="background:#fff7ed; padding:10px; border-radius:8px; border:1px solid #fed7aa; margin-bottom:15px;"><strong>📊 抽籤摘要</strong><br>總人數：${arrangement.length} 人<br>`;
     if (danPlayers.length > 0) {
         let maxDan = Math.max(...danPlayers.map(p => p.level));
         let topCount = danPlayers.filter(p => p.level === maxDan).length;
         html += `最高段位：${maxDan}段 (${topCount}人) - 已分散<br>`;
     }
-    if (sPlayers.length > 0) {
-        html += `S級選手：${sPlayers.length}人 - 已分散<br>`;
-    }
-    
+    if (sPlayers.length > 0) { html += `S級選手：${sPlayers.length}人 - 已分散<br>`; }
     html += `違規分數：${score} ${score === 0 ? '🎉 (完美)' : ''}</div>`;
 
-    if (adjustResult.adjusted) {
-        html += `<div style="margin-bottom:15px; font-size:0.9rem; color:#d97706;">
-            <strong>⚖️ 奇偶平衡調整</strong><br>
-            ${adjustResult.message.replace(/\n/g, '<br>')}
-        </div>`;
-    }
-
+    if (adjustResult.adjusted) { html += `<div style="margin-bottom:15px; font-size:0.9rem; color:#d97706;"><strong>⚖️ 奇偶平衡調整</strong><br>${adjustResult.message.replace(/\n/g, '<br>')}</div>`; }
     html += `<strong>📋 前 10 名預覽 & 檢測：</strong><ul style="padding-left:20px; margin-top:5px;">`;
     
-    // 檢查前幾名的配對狀況
     for(let i=0; i<Math.min(arrangement.length, 10); i+=2) {
-        if(i+1 >= arrangement.length) {
-            html += `<li>第 ${i+1} 桌：${arrangement[i].name} (輪空)</li>`;
-            break;
-        }
+        if(i+1 >= arrangement.length) { html += `<li>第 ${i+1} 桌：${arrangement[i].name} (輪空)</li>`; break; }
         let p1 = arrangement[i], p2 = arrangement[i+1];
         let warning = "";
-        
-        // 簡單違規檢查
         let penalty = 0;
         if (p1.type === 'letter' && p2.type === 'letter') penalty = calculateLetterPenalty(p1.level, p2.level);
         else if (p1.type === 'dan' && p2.type === 'dan') penalty = calculateDanPenalty(p1.level, p2.level);
-        
         if(penalty > 0) warning = `<span style="color:red; font-weight:bold; margin-left:5px;">⚠️ 碰撞</span>`;
-        
         html += `<li>第 ${i/2+1} 桌：${p1.name} vs ${p2.name} ${warning}</li>`;
     }
     html += `<li>... (共 ${Math.ceil(arrangement.length/2)} 桌)</li></ul>`;
     html += `<p style="font-size:0.85rem; color:#666; margin-top:10px;">* 名單已自動更新至輸入框，請點擊「初始化本組賽程」開始比賽。</p>`;
-
     document.getElementById('seedReportContent').innerHTML = html;
     document.getElementById('seedReportModal').style.display = 'flex';
 }
-
-// --- 核心邏輯移植區 (保持原算法邏輯) ---
 
 function adjustTopPlayerOddEven(arrangement) {
     let topPlayers = [];
     let hasS = arrangement.some(p => p.type === 'letter' && p.level === 'S');
     let hasDan = arrangement.some(p => p.type === 'dan');
-
-    if (hasS) {
-        arrangement.forEach((p, i) => { if(p.type==='letter' && p.level==='S') topPlayers.push({idx:i, isOdd:(i+1)%2!==0, name:p.name}); });
-    } else if (hasDan) {
+    if (hasS) { arrangement.forEach((p, i) => { if(p.type==='letter' && p.level==='S') topPlayers.push({idx:i, isOdd:(i+1)%2!==0, name:p.name}); }); }
+    else if (hasDan) {
         let maxDan = Math.max(...arrangement.filter(p=>p.type==='dan').map(p=>p.level));
         arrangement.forEach((p, i) => { if(p.type==='dan' && p.level===maxDan) topPlayers.push({idx:i, isOdd:(i+1)%2!==0, name:p.name}); });
     }
-
     if (topPlayers.length === 0) return { arrangement: arrangement, adjusted: false, message: '' };
 
     let oddCount = topPlayers.filter(p => p.isOdd).length;
     let evenCount = topPlayers.length - oddCount;
-    
     if (Math.abs(oddCount - evenCount) <= 1) return { arrangement: arrangement, adjusted: false, message: '' };
 
-    // 需要調整
     let newArr = [...arrangement];
     let log = [];
     let diff = Math.floor(Math.abs(oddCount - evenCount) / 2);
     let toEven = oddCount > evenCount;
-    
-    let targetPlayers = topPlayers.filter(p => p.isOdd === toEven); // 選出多出來的那一邊
+    let targetPlayers = topPlayers.filter(p => p.isOdd === toEven);
     
     for (let i = 0; i < diff && i < targetPlayers.length; i++) {
         let tIdx = targetPlayers[i].idx;
-        // 嘗試與相鄰交換 (往後或往前)
         let swapIdx = (tIdx + 1 < newArr.length) ? tIdx + 1 : tIdx - 1;
-        
         if (swapIdx >= 0 && swapIdx < newArr.length) {
             [newArr[tIdx], newArr[swapIdx]] = [newArr[swapIdx], newArr[tIdx]];
             log.push(`位置 ${tIdx+1} (${newArr[swapIdx].name}) 與 ${swapIdx+1} 交換`);
         }
     }
-
     return { arrangement: newArr, adjusted: true, message: `修正奇偶分佈：原奇${oddCount}/偶${evenCount}。\n` + log.join('\n') };
 }
 
@@ -1458,7 +1379,6 @@ function getPlayerType(name) {
     if (/(\d+|[一二三四五六七八九十]+)段$/.test(name)) return 'dan';
     return 'none';
 }
-
 function getPlayerLevel(name) {
     let type = getPlayerType(name);
     if (type === 'letter') return name.trim().slice(-1).toUpperCase();
@@ -1470,134 +1390,80 @@ function getPlayerLevel(name) {
     }
     return 0;
 }
-
 function chineseNumberToArabic(chinese) {
     const map = {'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10};
     if (chinese.length === 1) return map[chinese] || 0;
     if (chinese.startsWith('十')) return 10 + (map[chinese[1]] || 0);
     return 0;
 }
-
 function performSeedDraw(players) {
     let letterP = players.filter(p => p.type === 'letter');
     let danP = players.filter(p => p.type === 'dan');
     let otherP = players.filter(p => p.type === 'none');
-    
     let arrangement;
     let sPlayers = letterP.filter(p => p.level === 'S');
 
-    if (danP.length > 0) {
-        arrangement = performDistributedDraw(danP, letterP.concat(otherP), 'dan');
-    } else if (sPlayers.length > 0) {
-        arrangement = performDistributedDraw(sPlayers, letterP.filter(p=>p.level!=='S').concat(otherP), 'S');
-    } else if (letterP.length > 0) {
-        arrangement = performLetterDraw(letterP.concat(otherP));
-    } else {
-        arrangement = shuffleArray(players);
-    }
+    if (danP.length > 0) { arrangement = performDistributedDraw(danP, letterP.concat(otherP), 'dan'); } 
+    else if (sPlayers.length > 0) { arrangement = performDistributedDraw(sPlayers, letterP.filter(p=>p.level!=='S').concat(otherP), 'S'); } 
+    else if (letterP.length > 0) { arrangement = performLetterDraw(letterP.concat(otherP)); } 
+    else { arrangement = shuffleArray(players); }
 
     let score = calculateScore(arrangement);
     return { arrangement: arrangement, score: score };
 }
-
-// 通用的分散抽籤 (取代原本的 performDanDraw 和 performSDraw)
 function performDistributedDraw(seedPlayers, otherPlayers, mode) {
-    // 找出真正的種子 (最高段 或 S)
     let topSeeds, lowerSeeds;
     if (mode === 'dan') {
         let maxDan = Math.max(...seedPlayers.map(p => p.level));
         topSeeds = seedPlayers.filter(p => p.level === maxDan);
         lowerSeeds = seedPlayers.filter(p => p.level < maxDan);
-    } else {
-        topSeeds = seedPlayers; // S級全體
-        lowerSeeds = [];
-    }
+    } else { topSeeds = seedPlayers; lowerSeeds = []; }
 
     let pool = lowerSeeds.concat(otherPlayers);
-    topSeeds = shuffleArray(topSeeds);
-    pool = shuffleArray(pool);
-
+    topSeeds = shuffleArray(topSeeds); pool = shuffleArray(pool);
     let total = topSeeds.length + pool.length;
     let arrangement = new Array(total);
     let numSeeds = topSeeds.length;
-
     if (numSeeds === 0) return shuffleArray(seedPlayers.concat(otherPlayers));
 
-    // 計算間隔
     let baseInterval = Math.floor(total / numSeeds);
     let positions = [];
-    let firstPos = Math.random() < 0.5 ? 1 : 2; // 1-based
-
-    // 生成位置
+    let firstPos = Math.random() < 0.5 ? 1 : 2; 
     for (let i = 0; i < numSeeds; i++) positions.push(firstPos + i * baseInterval);
-
-    // 簡單的邊界與重疊修正
-    for (let i = 1; i < numSeeds; i++) {
-        if (positions[i] <= positions[i-1]) positions[i] = positions[i-1] + 1;
-    }
-    // 確保不超界
+    for (let i = 1; i < numSeeds; i++) { if (positions[i] <= positions[i-1]) positions[i] = positions[i-1] + 1; }
     positions = positions.map(p => Math.min(p, total));
 
-    // 填入種子
     positions.forEach((pos, i) => {
         if (!arrangement[pos-1]) arrangement[pos-1] = topSeeds[i];
         else {
-            // 撞位處理：找最近空位
             let k = pos-1;
             while(arrangement[k] && k < total) k++;
             if (k < total) arrangement[k] = topSeeds[i];
         }
     });
-
-    // 填入其他人
     let pIdx = 0;
-    for (let i = 0; i < total; i++) {
-        if (!arrangement[i]) {
-            arrangement[i] = pool[pIdx++];
-        }
-    }
-    
-    // 移除 undefined (安全網)
+    for (let i = 0; i < total; i++) { if (!arrangement[i]) { arrangement[i] = pool[pIdx++]; } }
     arrangement = arrangement.filter(x => x);
-
-    // 後續優化 (Monte Carlo Swap)
     return optimizeArrangement(arrangement, mode);
 }
-
-function performLetterDraw(players) {
-    return optimizeArrangement(shuffleArray(players), 'letter');
-}
-
+function performLetterDraw(players) { return optimizeArrangement(shuffleArray(players), 'letter'); }
 function optimizeArrangement(initialArr, mode) {
     let bestArr = [...initialArr];
     let bestScore = calculateScore(bestArr);
     let maxAttempts = 1000;
-
     for (let i = 0; i < maxAttempts; i++) {
         if (bestScore === 0) break;
         let curr = [...bestArr];
-        
-        // 隨機交換兩人 (避開 S 級或最高段位的固定位會更好，但這裡簡單處理隨機交換)
         let idx1 = Math.floor(Math.random() * curr.length);
         let idx2 = Math.floor(Math.random() * curr.length);
-        
-        // 限制：不要破壞已經排好的種子結構 (如果是 Dan/S 模式)
-        // 這裡簡化邏輯：如果有違規，專門針對違規點進行交換
-        
         [curr[idx1], curr[idx2]] = [curr[idx2], curr[idx1]];
-        
         let score = calculateScore(curr);
-        if (score < bestScore) {
-            bestScore = score;
-            bestArr = curr;
-        }
+        if (score < bestScore) { bestScore = score; bestArr = curr; }
     }
     return bestArr;
 }
-
 function calculateScore(arr) {
     let score = 0;
-    // 檢查相鄰 (1-2, 3-4...)
     for (let i = 0; i < arr.length - 1; i += 2) {
         let p1 = arr[i], p2 = arr[i+1];
         if (p1.type === 'letter' && p2.type === 'letter') score += calculateLetterPenalty(p1.level, p2.level);
@@ -1605,7 +1471,6 @@ function calculateScore(arr) {
     }
     return score;
 }
-
 function calculateLetterPenalty(l1, l2) {
     let p = 0;
     if (l1==='S' && l2==='S') p+=1000;
@@ -1614,7 +1479,6 @@ function calculateLetterPenalty(l1, l2) {
     if (l1==='T' && l2==='T') p+=200;
     return p;
 }
-
 function calculateDanPenalty(d1, d2) {
     let min = Math.min(d1, d2);
     if (min >= 8) return 2000;
@@ -1624,7 +1488,6 @@ function calculateDanPenalty(d1, d2) {
     if (min >= 4) return 400;
     return 0;
 }
-
 function shuffleArray(array) {
     let newArray = [...array];
     for (let i = newArray.length - 1; i > 0; i--) {
@@ -1634,102 +1497,45 @@ function shuffleArray(array) {
     return newArray;
 }
 </script>
-<!-- PWA 安裝模組 (V16 專用增強版) -->
 <script>
 (function() {
-    // --- 1. 定義高解析度圖示 (Base64) ---
-    // 這是一個藍色的獎盃圖示，讓安裝後的 App 有圖案
     const iconBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADIAQMAAACXljzdAAAABlBMVEUAkt7///+31gVIAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAK0lEQVRYw+3PMQ0AAAgDsMlHgnV0Mxc76QMWAQAAAAAAAAAAAAAAAADgWwOQeABy1Z7OQAAAAABJRU5ErkJggg=="; 
-    // (註：為了簡潔，上方只放了一個藍色方塊示意。若要精美圖示需更長的Base64，這裡先確保功能正常)
-
-    // --- 2. 動態建立 Manifest ---
-    const manifest = {
-        "name": "瑞士制 V16",
-        "short_name": "瑞士制 V16",
-        "start_url": ".",
-        "display": "standalone",
-        "background_color": "#f0f9ff",
-        "theme_color": "#3b82f6",
-        "orientation": "portrait",
-        "icons": [
-            { "src": iconBase64, "sizes": "192x192", "type": "image/png" },
-            { "src": iconBase64, "sizes": "512x512", "type": "image/png" }
-        ]
-    };
+    const manifest = { "name": "瑞士制 V16", "short_name": "瑞士制 V16", "start_url": ".", "display": "standalone", "background_color": "#f0f9ff", "theme_color": "#3b82f6", "orientation": "portrait", "icons": [ { "src": iconBase64, "sizes": "192x192", "type": "image/png" }, { "src": iconBase64, "sizes": "512x512", "type": "image/png" } ] };
     const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
     const manifestURL = URL.createObjectURL(manifestBlob);
     const link = document.createElement('link');
-    link.rel = 'manifest';
-    link.href = manifestURL;
-    document.head.appendChild(link);
+    link.rel = 'manifest'; link.href = manifestURL; document.head.appendChild(link);
 
-    // --- 3. 插入 iOS Meta Tags ---
-    const metaTags = [
-        {name: 'apple-mobile-web-app-capable', content: 'yes'},
-        {name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent'},
-        {name: 'apple-mobile-web-app-title', content: '瑞士制V16'},
-        {name: 'mobile-web-app-capable', content: 'yes'}
-    ];
-    metaTags.forEach(t => {
-        const m = document.createElement('meta'); m.name = t.name; m.content = t.content;
-        document.head.appendChild(m);
-    });
-    // iOS 圖示
-    const linkIcon = document.createElement('link');
-    linkIcon.rel = 'apple-touch-icon';
-    linkIcon.href = iconBase64;
-    document.head.appendChild(linkIcon);
+    const metaTags = [ {name: 'apple-mobile-web-app-capable', content: 'yes'}, {name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent'}, {name: 'apple-mobile-web-app-title', content: '瑞士制V16'}, {name: 'mobile-web-app-capable', content: 'yes'} ];
+    metaTags.forEach(t => { const m = document.createElement('meta'); m.name = t.name; m.content = t.content; document.head.appendChild(m); });
+    const linkIcon = document.createElement('link'); linkIcon.rel = 'apple-touch-icon'; linkIcon.href = iconBase64; document.head.appendChild(linkIcon);
 
-    // --- 4. 安裝按鈕邏輯 ---
     let deferredPrompt;
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    
-    // 建立安裝按鈕 (預設隱藏)
     const installBtn = document.createElement('button');
-    installBtn.className = 'nav-item'; // 使用原本的樣式
+    installBtn.className = 'nav-item';
     installBtn.style.cssText = "display:none; background: linear-gradient(135deg, #f59e0b, #d97706); color:white; border:none;";
     installBtn.innerHTML = "📲 安裝";
-    
-    // 將按鈕插入到導航列 (.nav-pills) 的最後面
     const nav = document.querySelector('.nav-pills');
     if(nav) nav.appendChild(installBtn);
 
-    // 安卓: 監聽安裝事件
     window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        installBtn.style.display = 'block'; // 顯示按鈕
-        
-        installBtn.onclick = () => {
-            installBtn.style.display = 'none';
-            deferredPrompt.prompt();
-            deferredPrompt.userChoice.then((choiceResult) => {
-                if (choiceResult.outcome === 'accepted') {
-                    console.log('使用者接受安裝');
-                }
-                deferredPrompt = null;
-            });
-        };
+        e.preventDefault(); deferredPrompt = e; installBtn.style.display = 'block';
+        installBtn.onclick = () => { installBtn.style.display = 'none'; deferredPrompt.prompt(); deferredPrompt.userChoice.then((choiceResult) => { deferredPrompt = null; }); };
     });
 
-    // iOS: 只要不是在 App 模式中，就顯示按鈕 (教學用)
     const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
     if (isIOS && !isInStandaloneMode) {
         installBtn.style.display = 'block';
-        installBtn.onclick = () => {
-            alert("👉 iOS 安裝教學：\n\n1. 點擊瀏覽器下方的「分享」按鈕 (方框箭頭)。\n2. 滑動選單找到「加入主畫面」。\n3. 點擊右上角的「加入」。");
-        };
+        installBtn.onclick = () => { alert("👉 iOS 安裝教學：\n\n1. 點擊瀏覽器下方的「分享」按鈕 (方框箭頭)。\n2. 滑動選單找到「加入主畫面」。\n3. 點擊右上角的「加入」。"); };
     }
     
-    // --- 5. 註冊 Service Worker (若支援) ---
-    // 這是為了讓 App 能夠被判定為可安裝，必須要有 fetch handler
     if ('serviceWorker' in navigator) {
        const swCode = "self.addEventListener('fetch', function(event) { return; });";
        const swBlob = new Blob([swCode], {type: 'text/javascript'});
        const swUrl = URL.createObjectURL(swBlob);
        navigator.serviceWorker.register(swUrl).catch(e => console.log(e));
     }
-
 })();
 </script>
 </body>
