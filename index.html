@@ -1,9 +1,10 @@
+html
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>瑞士制積分編排系統 V17.1 (賽事管理優化版)</title>
+<title>瑞士制積分編排系統 V17.2 (搜尋功能增強版)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
@@ -30,18 +31,48 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { font-family: 'Noto Sans TC', sans-serif; background: var(--bg); color: var(--text-main); padding: 0; margin: 0; line-height: 1.6; font-size: 16px; transition: background 0.3s; }
 
-/* 組別切換條 */
+/* 組別切換條 (Updated V17.2) */
 .group-bar {
-    background: var(--card-bg); padding: 10px 15px; 
+    background: var(--card-bg); padding: 8px 15px; height: 50px;
     display: flex; justify-content: center; align-items: center;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; border-bottom: 1px solid #e2e8f0;
 }
 .current-group-display { 
     font-weight: 900; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--primary-dark);
-    padding: 5px 15px; border-radius: 20px; transition: background 0.2s;
+    padding: 5px 15px; border-radius: 20px; transition: opacity 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .current-group-display:hover { background: rgba(0,0,0,0.03); }
-.group-indicator { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); display: inline-block; }
+.group-indicator { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); display: inline-block; flex-shrink: 0; }
+
+/* Global Search Bar Styles */
+.search-icon-btn {
+    position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
+    cursor: pointer; font-size: 1.2rem; color: var(--text-sub); padding: 5px; border-radius: 50%;
+}
+.search-icon-btn:hover { background: #f1f5f9; color: var(--primary); }
+
+.global-search-container {
+    position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+    background: white; display: none; align-items: center; padding: 0 10px; z-index: 1001;
+    animation: slideDownFade 0.2s ease-out;
+}
+@keyframes slideDownFade { from{opacity:0;transform:translateY(-10px);} to{opacity:1;transform:translateY(0);} }
+.global-search-input {
+    flex: 1; border: none; background: #f1f5f9; padding: 8px 15px; border-radius: 20px;
+    font-size: 1rem; outline: none; margin-right: 10px;
+}
+.global-search-close {
+    border: none; background: transparent; color: #64748b; font-weight: bold; font-size: 0.9rem; cursor: pointer; padding: 5px 10px;
+}
+
+/* Highlight Animations */
+@keyframes highlightPulse {
+    0% { background-color: #fef08a; transform: scale(1); }
+    50% { background-color: #fde047; transform: scale(1.02); }
+    100% { background-color: transparent; transform: scale(1); }
+}
+.highlight-row { animation: highlightPulse 2s ease-out; background-color: #fffbeb; }
+.highlight-card { animation: highlightPulse 2s ease-out; border: 2px solid #eab308 !important; }
 
 .container { max-width: 1200px; margin: 0 auto; padding: 20px; padding-bottom: 60px; }
 
@@ -105,7 +136,7 @@ button:active { transform: scale(0.96); }
     gap: 15px; 
     margin-top: 15px; 
 }
-.match-card-ui { background: var(--card-bg); border-radius: 12px; box-shadow: var(--shadow-md); overflow: hidden; border: 1px solid #e2e8f0; position: relative; transition: border 0.2s; }
+.match-card-ui { background: var(--card-bg); border-radius: 12px; box-shadow: var(--shadow-md); overflow: hidden; border: 1px solid #e2e8f0; position: relative; transition: border 0.2s, background 0.2s; }
 .match-header { background: #f8fafc; padding: 8px 15px; display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-sub); border-bottom: 1px solid #e0f2fe; }
 .match-content { display: flex; align-items: center; padding: 12px; justify-content: space-between; }
 .player-box { flex: 1; text-align: center; cursor: pointer; padding: 6px; border-radius: 8px; transition: 0.2s; }
@@ -137,7 +168,7 @@ button:active { transform: scale(0.96); }
 .table-container { background: white; border-radius: 12px; box-shadow: var(--shadow-md); overflow: hidden; border: 1px solid #e2e8f0; overflow-x: auto; }
 .modern-table { width: 100%; border-collapse: collapse; min-width: 600px; }
 .modern-table th { background: #f8fafc; color: var(--text-sub); font-weight: 700; padding: 12px 8px; text-align: center; border-bottom: 2px solid #e0f2fe; font-size: 0.85rem; white-space: nowrap; }
-.modern-table td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; text-align: center; font-size: 0.95rem; color: var(--text-main); white-space: nowrap; }
+.modern-table td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; text-align: center; font-size: 0.95rem; color: var(--text-main); white-space: nowrap; transition: background 0.3s; }
 .modern-table tr:nth-child(even) { background-color: #f8fafc; }
 .clickable-name { color: var(--primary); font-weight: bold; cursor: pointer; text-decoration: underline; }
 
@@ -149,7 +180,10 @@ button:active { transform: scale(0.96); }
 .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
 .close-btn { font-size: 1.5rem; cursor: pointer; color: white; opacity: 0.8; padding: 0 10px; }
 
-/* Group Manager Styles */
+/* Group Manager Styles (Updated with Search) */
+.group-search-wrapper { margin-top: 10px; position: relative; }
+.group-search-input { width: 100%; padding: 8px 10px 8px 30px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; background: #f8fafc; }
+.group-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.9rem; }
 .group-list-item {
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px;
@@ -214,12 +248,19 @@ button:active { transform: scale(0.96); }
 </head>
 <body class="theme-blue">
 
-<!-- Top Bar -->
+<!-- Top Bar (With Search) -->
 <div class="group-bar">
-    <div class="current-group-display" onclick="openGroupManager()">
+    <div class="current-group-display" id="topBarTitle" onclick="openGroupManager()">
         <span class="group-indicator"></span>
         <span id="topBarText">切換賽事/組別</span>
         <span style="font-size:0.8rem; color:#999">▼</span>
+    </div>
+    <div class="search-icon-btn" onclick="toggleGlobalSearch()">🔍</div>
+    
+    <div id="globalSearchContainer" class="global-search-container">
+        <span style="margin-right:8px; font-size:1.2rem;">🔍</span>
+        <input type="text" id="globalSearchInput" class="global-search-input" placeholder="輸入選手姓名或編號...">
+        <button class="global-search-close" onclick="closeGlobalSearch()">取消</button>
     </div>
 </div>
 
@@ -390,7 +431,7 @@ button:active { transform: scale(0.96); }
     </div>
 </div>
 
-<!-- Group Manager Modal -->
+<!-- Group Manager Modal (Updated with Filter) -->
 <div id="groupManagerModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -398,8 +439,12 @@ button:active { transform: scale(0.96); }
             <span class="close-btn" onclick="closeGroupManager()">&times;</span>
         </div>
         <div class="modal-body">
-            <div style="margin-bottom:20px; display:flex; gap:10px;">
-                <button class="btn-primary" style="flex:1" onclick="createNewGroup()">+ 新增賽事/組別</button>
+            <div style="margin-bottom:15px; display:flex; flex-direction:column; gap:10px;">
+                <button class="btn-primary" style="width:100%" onclick="createNewGroup()">+ 新增賽事/組別</button>
+                <div class="group-search-wrapper">
+                    <span class="group-search-icon">🔍</span>
+                    <input type="text" id="groupFilterInput" class="group-search-input" placeholder="搜尋賽事名稱..." oninput="renderGroupList()">
+                </div>
             </div>
             <div id="groupListContainer"></div>
         </div>
@@ -521,6 +566,22 @@ window.onload = function(){
             document.getElementById('menuPost').style.display = "none";
         }
     }
+    
+    // Global Search Input Listener
+    const gsInput = document.getElementById('globalSearchInput');
+    gsInput.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter') performGlobalSearch();
+        if(e.key === 'Escape') closeGlobalSearch();
+    });
+    gsInput.addEventListener('input', performGlobalSearch);
+
+    // Keyboard Shortcut Ctrl+F
+    document.addEventListener('keydown', (e) => {
+        if((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            toggleGlobalSearch();
+        }
+    });
 };
 
 function loadGroupSystem() {
@@ -638,6 +699,7 @@ function updateHeaderDisplay() {
     document.getElementById('displayGroupName').innerText = sysData.info.groupName || "組別";
     document.getElementById('displayDate').innerText = sysData.info.date || "日期";
     document.title = sysData.info.eventName + " - 瑞士制排程";
+    document.getElementById('topBarText').innerText = `${sysData.info.eventName} (${sysData.info.groupName})`;
 }
 
 function updateUI(){
@@ -660,11 +722,25 @@ function updateUI(){
     updateHeaderDisplay();
 }
 
-/* --- Group Manager UI (Updated) --- */
+/* --- Group Manager UI (Updated with Filter) --- */
 function openGroupManager() {
+    document.getElementById('groupFilterInput').value = ''; // Reset Filter
+    renderGroupList();
+    document.getElementById('groupManagerModal').style.display = 'flex';
+}
+
+function renderGroupList() {
+    const filter = document.getElementById('groupFilterInput').value.toLowerCase();
     const list = document.getElementById('groupListContainer');
     list.innerHTML = '';
-    groups.forEach(g => {
+    
+    // Sort: Newest created (bottom of array) to Top. 
+    // Clone array, reverse it for rendering order.
+    let displayGroups = [...groups].reverse();
+    
+    displayGroups.forEach(g => {
+        if(filter && !g.name.toLowerCase().includes(filter) && !g.groupName.toLowerCase().includes(filter)) return;
+        
         const div = document.createElement('div');
         div.className = `group-list-item ${g.id === activeGroupId ? 'active-group' : ''}`;
         const colorMap = {blue:'#3b82f6', green:'#10b981', red:'#ef4444', orange:'#f59e0b', purple:'#8b5cf6', teal:'#06b6d4', dark:'#334155'};
@@ -683,8 +759,12 @@ function openGroupManager() {
         `;
         list.appendChild(div);
     });
-    document.getElementById('groupManagerModal').style.display = 'flex';
+    
+    if(list.children.length === 0) {
+        list.innerHTML = `<div style="text-align:center; color:#94a3b8; padding:20px;">沒有找到符合的賽事</div>`;
+    }
 }
+
 function closeGroupManager() { document.getElementById('groupManagerModal').style.display = 'none'; }
 function switchGroupAndClose(id) { switchGroup(id); closeGroupManager(); }
 function createNewGroup() { document.getElementById('createGroupModal').style.display = 'block'; }
@@ -712,7 +792,73 @@ function deleteGroup(id) {
     saveGroupsIndex();
     localStorage.removeItem(STORE_PREFIX + id);
     if (id === activeGroupId) switchGroup(groups[0].id);
-    openGroupManager(); 
+    renderGroupList(); 
+}
+
+/* --- Global Player Search Logic --- */
+function toggleGlobalSearch() {
+    const container = document.getElementById('globalSearchContainer');
+    const input = document.getElementById('globalSearchInput');
+    const topBarTitle = document.getElementById('topBarTitle');
+    const iconBtn = document.querySelector('.search-icon-btn');
+    
+    if (container.style.display === 'flex') {
+        closeGlobalSearch();
+    } else {
+        container.style.display = 'flex';
+        input.focus();
+        topBarTitle.style.opacity = '0'; // Hide title for cleanliness
+        iconBtn.style.opacity = '0';
+    }
+}
+function closeGlobalSearch() {
+    document.getElementById('globalSearchContainer').style.display = 'none';
+    document.getElementById('globalSearchInput').value = '';
+    document.getElementById('topBarTitle').style.opacity = '1';
+    document.querySelector('.search-icon-btn').style.opacity = '1';
+    // Clear highlights
+    document.querySelectorAll('.highlight-row').forEach(el => el.classList.remove('highlight-row'));
+    document.querySelectorAll('.highlight-card').forEach(el => el.classList.remove('highlight-card'));
+}
+function performGlobalSearch() {
+    const query = document.getElementById('globalSearchInput').value.trim().toLowerCase();
+    if(!query) {
+         // Clear highlights if empty
+        document.querySelectorAll('.highlight-row').forEach(el => el.classList.remove('highlight-row'));
+        document.querySelectorAll('.highlight-card').forEach(el => el.classList.remove('highlight-card'));
+        return;
+    }
+
+    // Determine current active section
+    let found = false;
+    
+    // Check Pairing
+    if(document.getElementById('pairing').classList.contains('active')) {
+        const cards = document.querySelectorAll('.match-card-ui');
+        cards.forEach(card => card.classList.remove('highlight-card'));
+        for(let card of cards) {
+            if(card.innerText.toLowerCase().includes(query)) {
+                card.scrollIntoView({behavior: 'smooth', block: 'center'});
+                card.classList.add('highlight-card');
+                found = true;
+                break; // Scroll to first match
+            }
+        }
+    } 
+    // Check Standings or Summary
+    else if(document.getElementById('standings').classList.contains('active') || document.getElementById('summary').classList.contains('active')) {
+        const activeTableId = document.getElementById('standings').classList.contains('active') ? 'rankingTable' : 'summaryTable';
+        const rows = document.querySelectorAll(`#${activeTableId} tbody tr`);
+        rows.forEach(row => row.classList.remove('highlight-row'));
+        for(let row of rows) {
+            if(row.innerText.toLowerCase().includes(query)) {
+                row.scrollIntoView({behavior: 'smooth', block: 'center'});
+                row.classList.add('highlight-row');
+                found = true;
+                break;
+            }
+        }
+    }
 }
 
 /* --- System Functions (Safety & Logic) --- */
@@ -1366,4 +1512,4 @@ function calculateDanPenalty(d1, d2) { let min = Math.min(d1, d2); if (min >= 8)
 function shuffleArray(array) { let newArray = [...array]; for (let i = newArray.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [newArray[i], newArray[j]] = [newArray[j], newArray[i]]; } return newArray; }
 </script>
 </body>
-</html>
+</html>```
