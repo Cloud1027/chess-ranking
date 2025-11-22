@@ -105,7 +105,7 @@ button:active { transform: scale(0.96); }
     gap: 15px; 
     margin-top: 15px; 
 }
-.match-card-ui { background: var(--card-bg); border-radius: 12px; box-shadow: var(--shadow-md); overflow: hidden; border: 1px solid #e2e8f0; }
+.match-card-ui { background: var(--card-bg); border-radius: 12px; box-shadow: var(--shadow-md); overflow: hidden; border: 1px solid #e2e8f0; position: relative; transition: border 0.2s; }
 .match-header { background: #f8fafc; padding: 8px 15px; display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-sub); border-bottom: 1px solid #e0f2fe; }
 .match-content { display: flex; align-items: center; padding: 12px; justify-content: space-between; }
 .player-box { flex: 1; text-align: center; cursor: pointer; padding: 6px; border-radius: 8px; transition: 0.2s; }
@@ -123,6 +123,15 @@ button:active { transform: scale(0.96); }
 .tag-win { background: #fee2e2; color: #991b1b; }
 .tag-loss { background: #dbeafe; color: #1e40af; }
 .tag-draw { background: #d1fae5; color: #065f46; }
+
+/* Rematch Alert Styles */
+.match-card-ui.rematch-alert { border: 3px solid var(--primary) !important; box-shadow: 0 0 12px rgba(0,0,0,0.15); }
+.rematch-tag {
+    position: absolute; top: 40px; left: 50%; transform: translateX(-50%);
+    background: var(--primary); color: white; font-size: 0.75rem;
+    padding: 2px 10px; border-radius: 20px; font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 5; pointer-events: none;
+}
 
 /* Tables */
 .table-container { background: white; border-radius: 12px; box-shadow: var(--shadow-md); overflow: hidden; border: 1px solid #e2e8f0; overflow-x: auto; }
@@ -932,10 +941,20 @@ function renderPairingList(animate = false, highlightNumber = null){
     pairs.forEach((p, idx) => {
         let wPts = p.white.isBye ? '-' : calcScoreBeforeRound(p.white.number, viewingRound);
         let bPts = p.black.isBye ? '-' : calcScoreBeforeRound(p.black.number, viewingRound);
+        
+        // 檢查重複對戰
+        let isRematch = false;
+        if(!p.black.isBye && sysData.pairings.some(past => past.round < viewingRound && ((past.white.number===p.white.number && past.black.number===p.black.number) || (past.white.number===p.black.number && past.black.number===p.white.number)))) {
+            isRematch = true;
+        }
+
         const card = document.createElement('div'); 
         card.className = 'match-card-ui';
+        if(isRematch) card.classList.add('rematch-alert');
+        
         if (animate) { card.classList.add('card-animate-enter'); card.style.animationDelay = `${idx < 12 ? idx * 0.1 : 1.2}s`; }
         if (highlightNumber !== null && (p.white.number === highlightNumber || p.black.number === highlightNumber)) card.classList.add('card-update-pulse');
+        
         let centerHTML = '';
         if(p.result === null) {
             if(!p.black.isBye && !isManualMode) { centerHTML = `<div class="vs-area"><div class="btn-res-group"><button class="btn-res btn-res-red" onclick="setRes(${p.white.number},1)">紅</button><button class="btn-res btn-res-draw" onclick="setRes(${p.white.number},0.5)">和</button><button class="btn-res btn-res-black" onclick="setRes(${p.white.number},0)">黑</button></div></div>`; } 
@@ -952,7 +971,10 @@ function renderPairingList(animate = false, highlightNumber = null){
         let bClick = isManualMode ? `onclick="handleManualSelect(${idx}, false)"` : '';
         let selW = (swapSource && swapSource.pairingIdx===idx && swapSource.isWhite) ? 'selected' : '';
         let selB = (swapSource && swapSource.pairingIdx===idx && !swapSource.isWhite) ? 'selected' : '';
-        card.innerHTML = `<div class="match-header"><span>第 ${idx+1} 桌</span><span style="font-weight:bold;color:var(--primary)">ROUND ${viewingRound}</span></div><div class="match-content"><div class="player-box ${selW}" ${wClick}><span class="player-num-badge">#${p.white.number}</span><span class="player-name" style="color:#FF6347">${p.white.name}</span><span class="player-score">${wPts}分</span></div>${centerHTML}<div class="player-box ${selB}" ${bClick}>${p.black.isBye ? '' : `<span class="player-num-badge">#${p.black.number}</span>`}<span class="player-name" style="color:#1e3a8a">${p.black.isBye?'輪空':p.black.name}</span><span class="player-score">${bPts}分</span></div></div>`;
+        
+        let rematchBadge = isRematch ? `<div class="rematch-tag">⚠️ 重複對戰</div>` : '';
+        
+        card.innerHTML = `${rematchBadge}<div class="match-header"><span>第 ${idx+1} 桌</span><span style="font-weight:bold;color:var(--primary)">ROUND ${viewingRound}</span></div><div class="match-content"><div class="player-box ${selW}" ${wClick}><span class="player-num-badge">#${p.white.number}</span><span class="player-name" style="color:#FF6347">${p.white.name}</span><span class="player-score">${wPts}分</span></div>${centerHTML}<div class="player-box ${selB}" ${bClick}>${p.black.isBye ? '' : `<span class="player-num-badge">#${p.black.number}</span>`}<span class="player-name" style="color:#1e3a8a">${p.black.isBye?'輪空':p.black.name}</span><span class="player-score">${bPts}分</span></div></div>`;
         listDiv.appendChild(card);
     });
 }
