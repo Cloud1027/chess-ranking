@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>瑞士制積分編排系統 V17.2 (搜尋功能增強版)</title>
+<title>瑞士制積分編排系統 V17.5 (全域最優解版)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
@@ -30,7 +30,7 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { font-family: 'Noto Sans TC', sans-serif; background: var(--bg); color: var(--text-main); padding: 0; margin: 0; line-height: 1.6; font-size: 16px; transition: background 0.3s; }
 
-/* 組別切換條 (Updated V17.2) */
+/* 組別切換條 */
 .group-bar {
     background: var(--card-bg); padding: 8px 15px; height: 50px;
     display: flex; justify-content: center; align-items: center;
@@ -531,7 +531,7 @@ button:active { transform: scale(0.96); }
         <div class="pulse-ring"></div>
     </div>
     <div class="loading-text" id="loadingMainText">SYSTEM PROCESSING</div>
-    <div class="loading-sub" id="loadingSubText">Initializing...</div>
+    <div class="loading-sub" id="loadingSubText">Searching for Optimal Pairing...</div>
 </div>
 
 <script>
@@ -973,88 +973,206 @@ function importJSON(input) {
     input.value = ''; 
 }
 
-/* --- Pairing Logic --- */
-function generateNextRound(){
-    if(viewingRound !== sysData.currentRound && sysData.currentRound > 0) return alert("請先切換至最新一輪");
-    if(sysData.currentRound > 0){ 
+/* --- V17.5 Global Optimal Pairing Logic --- */
+function generateNextRound() {
+    if (viewingRound !== sysData.currentRound && sysData.currentRound > 0) return alert("請先切換至最新一輪");
+    if (sysData.currentRound > 0) {
         const unfinished = sysData.pairings.filter(p => p.round <= sysData.currentRound && p.result === null);
-        if(unfinished.length > 0) return alert(`第 ${unfinished[0].round} 輪還有成績未填寫！`);
+        if (unfinished.length > 0) return alert(`第 ${unfinished[0].round} 輪還有成績未填寫！`);
     }
+
     updateScores();
-    sysData.currentRound++; 
-    viewingRound = sysData.currentRound; 
+    sysData.currentRound++;
+    viewingRound = sysData.currentRound;
     const rd = sysData.currentRound;
-    let active = sysData.players.filter(p=>!p.isBye && !p.isWithdrawn);
-    active.sort((a,b)=>(b.points-a.points)||(b.opponentPoints-a.opponentPoints)||(a.number-b.number));
-    
+
+    // Filter and sort active players
+    let active = sysData.players.filter(p => !p.isBye && !p.isWithdrawn);
+    active.sort((a, b) => (b.points - a.points) || (b.opponentPoints - a.opponentPoints) || (a.number - b.number));
+
     let pairings = [];
     let byePlayer = null;
-    if(active.length % 2 !== 0) {
-        let byeIdx = active.length - 1;
-        for(let i=active.length-1; i>=0; i--){ if(!active[i].results.includes("輪空勝")) { byeIdx = i; break; } }
+
+    if (active.length % 2 !== 0) {
+        let byeIdx = -1;
+        for (let i = active.length - 1; i >= 0; i--) {
+            let hasBye = active[i].results.includes("輪空勝"); 
+            if (!hasBye) {
+                byeIdx = i;
+                break;
+            }
+        }
+        if (byeIdx === -1) byeIdx = active.length - 1;
         byePlayer = active.splice(byeIdx, 1)[0];
     }
 
-    function calcPenalty(p1, p2) {
-        let scoreDiff = Math.abs(p1.points - p2.points);
-        let penalty = scoreDiff * 10000; 
+    // --- Cost Function (Exponential Penalty) ---
+    function calculatePairingCost(p1, p2) {
+        let cost = 0;
+        // 1. Score Difference (Exponential)
+        // Diff 0: 0
+        // Diff 1: 500 (Manageable)
+        // Diff 2: 50,000,000 (Prohibitive)
+        let diff = Math.abs(p1.points - p2.points);
+        if (diff === 1) cost += 500;
+        else if (diff >= 2) cost += 50000000 * diff; // Brutal penalty
+
+        // 2. Color Compatibility
         let t1 = getColorTrend(p1), t2 = getColorTrend(p2);
-        if((t1 === 1 && t2 === 1) || (t1 === -1 && t2 === -1)) penalty += 50;
+        if ((t1 === 1 && t2 === 1) || (t1 === -1 && t2 === -1)) cost += 50; // Try to avoid same streak
+        
+        // 3. Color Balance
         let bal1 = (p1.colors.filter(c=>c==='先').length) - (p1.colors.filter(c=>c==='後').length);
         let bal2 = (p2.colors.filter(c=>c==='先').length) - (p2.colors.filter(c=>c==='後').length);
-        if (bal1 * bal2 > 0) penalty += 20;
-        return penalty;
+        if (bal1 * bal2 > 0) cost += 5;
+
+        return cost;
     }
-    function solveSwiss(currentPlayers, forbidRepeats) {
-        if (currentPlayers.length === 0) return [];
+
+    function hasPlayed(p1, p2) {
+        return p1.opponents.includes(p2.number);
+    }
+
+    // --- Global Recursive Search with Time Limit ---
+    let bestSolution = null;
+    let bestSolutionCost = Infinity;
+    const maxTime = 2000; // 2 seconds search limit
+    const startTime = Date.now();
+
+    function solveRecursively(currentPlayers, currentPairs, currentCost) {
+        // Time Check
+        if ((Date.now() - startTime) > maxTime) return;
+        
+        // Pruning
+        if (currentCost >= bestSolutionCost) return;
+
+        // Base Case
+        if (currentPlayers.length === 0) {
+            bestSolution = [...currentPairs];
+            bestSolutionCost = currentCost;
+            return;
+        }
+
         let p1 = currentPlayers[0];
+        // Sort candidates by immediate cost to find good solutions early
         let candidates = [];
         for (let i = 1; i < currentPlayers.length; i++) {
             let p2 = currentPlayers[i];
-            if (forbidRepeats && p1.opponents.includes(p2.number)) continue;
-            candidates.push({ player: p2, idx: i, penalty: calcPenalty(p1, p2) });
-        }
-        candidates.sort((a, b) => a.penalty - b.penalty);
-        for (let cand of candidates) {
-            let p2 = cand.player;
-            let remaining = currentPlayers.filter((_, index) => index !== 0 && index !== cand.idx);
-            let result = solveSwiss(remaining, forbidRepeats);
-            if (result !== null) {
-                let assigned = assignColors(p1, p2);
-                return [{ white: assigned.w, black: assigned.b, result: null }, ...result];
+            if (!hasPlayed(p1, p2)) {
+                candidates.push({ p2: p2, idx: i, cost: calculatePairingCost(p1, p2) });
             }
         }
-        return null;
+        candidates.sort((a,b) => a.cost - b.cost);
+
+        for (let cand of candidates) {
+            let newCost = currentCost + cand.cost;
+            // Pruning lookahead
+            if (newCost >= bestSolutionCost) continue;
+
+            let nextPlayers = currentPlayers.filter((_, index) => index !== 0 && index !== cand.idx);
+            currentPairs.push({ p1: p1, p2: cand.p2 });
+            
+            solveRecursively(nextPlayers, currentPairs, newCost);
+            
+            currentPairs.pop(); // Backtrack
+            if ((Date.now() - startTime) > maxTime) break; // Hard break
+        }
     }
-    let solvedPairs = solveSwiss(active, true);
-    if (solvedPairs === null) {
-        alert("⚠️ 提示：無法不重複對弈，系統將允許重複。");
-        solvedPairs = solveSwiss(active, false);
+
+    // 1. Try Strict No Repeats
+    solveRecursively(active, [], 0);
+
+    // 2. Fallback (Allow Repeats if no solution found)
+    if (!bestSolution) {
+        alert("⚠️ 無法找到不重複對戰組合，系統將允許重複對戰。");
+        // Relax hasPlayed constraint
+        function solveRelaxed(currentPlayers, currentPairs, currentCost) {
+            if ((Date.now() - startTime) > maxTime + 1000) return; // Extra time
+            if (currentCost >= bestSolutionCost) return;
+            if (currentPlayers.length === 0) {
+                bestSolution = [...currentPairs];
+                bestSolutionCost = currentCost;
+                return;
+            }
+            let p1 = currentPlayers[0];
+            for (let i = 1; i < currentPlayers.length; i++) {
+                let p2 = currentPlayers[i];
+                let cost = calculatePairingCost(p1, p2) + (hasPlayed(p1, p2) ? 100000 : 0); // Penalize repeats heavily
+                let newCost = currentCost + cost;
+                if (newCost < bestSolutionCost) {
+                    let nextPlayers = currentPlayers.filter((_, index) => index !== 0 && index !== i);
+                    currentPairs.push({ p1: p1, p2: p2 });
+                    solveRelaxed(nextPlayers, currentPairs, newCost);
+                    currentPairs.pop();
+                }
+            }
+        }
+        solveRelaxed(active, [], 0);
     }
-    if (solvedPairs === null) {
-        alert("❌ 錯誤：無法產生配對。");
-        sysData.currentRound--; viewingRound = sysData.currentRound; return;
+
+    if (!bestSolution) {
+        alert("❌ 嚴重錯誤：無法產生任何配對。");
+        sysData.currentRound--;
+        viewingRound = sysData.currentRound;
+        return;
     }
-    solvedPairs.forEach(p => p.round = rd);
+
+    // Assign Colors & Format
+    bestSolution.forEach(pair => {
+        let assigned = assignColors(pair.p1, pair.p2);
+        pairings.push({round: rd, white: assigned.w, black: assigned.b, result: null});
+    });
+
     if (byePlayer) {
         let byeDummy = sysData.players.find(p => p.isBye);
         pairings.push({round: rd, white: byePlayer, black: byeDummy, result: 1});
     }
-    pairings.push(...solvedPairs);
+
     sysData.pairings.push(...pairings); 
     saveCurrentGroupData(); 
     renderPairingList(true); 
     updateButtonsState();
 }
-function getColorTrend(p) { if(p.colors.length<2)return 0; let l1=p.colors[p.colors.length-1], l2=p.colors[p.colors.length-2]; return (l1==='先'&&l2==='先')?1:(l1==='後'&&l2==='後')?-1:0; }
-function assignColors(p1, p2) {
-    let r1=p1.colors.filter(c=>c==='先').length, b1=p1.colors.filter(c=>c==='後').length;
-    let r2=p2.colors.filter(c=>c==='先').length, b2=p2.colors.filter(c=>c==='後').length;
-    let t1=getColorTrend(p1), t2=getColorTrend(p2);
-    if(t1===1||t2===-1) return {w:p2,b:p1}; if(t1===-1||t2===1) return {w:p1,b:p2};
-    if((r1-b1)>(r2-b2)) return {w:p2,b:p1}; if((r2-b2)>(r1-b1)) return {w:p1,b:p2};
-    return (p1.colors[p1.colors.length-1]==='先') ? {w:p2,b:p1} : {w:p1,b:p2};
+
+// Logic Helper: Color Trend (1: Consecutive Red, -1: Consecutive Black, 0: Mixed)
+function getColorTrend(p) { 
+    if(p.colors.length < 2) return 0; 
+    let l1 = p.colors[p.colors.length-1];
+    let l2 = p.colors[p.colors.length-2]; 
+    return (l1==='先' && l2==='先') ? 1 : (l1==='後' && l2==='後') ? -1 : 0; 
 }
+
+// Logic Helper: Assign Colors
+function assignColors(p1, p2) {
+    let r1 = p1.colors.filter(c=>c==='先').length;
+    let b1 = p1.colors.filter(c=>c==='後').length;
+    let r2 = p2.colors.filter(c=>c==='先').length;
+    let b2 = p2.colors.filter(c=>c==='後').length;
+    
+    let t1 = getColorTrend(p1);
+    let t2 = getColorTrend(p2);
+
+    // 1. Mandatory Swap (Avoid 3 same colors)
+    if (t1 === 1 || t2 === -1) return {w: p2, b: p1}; // p1 needs Black, or p2 needs White
+    if (t1 === -1 || t2 === 1) return {w: p1, b: p2}; // p1 needs White, or p2 needs Black
+
+    // 2. Balance Equalization (Who needs balance more?)
+    let bal1 = r1 - b1; // Positive = more Red
+    let bal2 = r2 - b2;
+    
+    if (bal1 > bal2) return {w: p2, b: p1}; // p1 has more Reds, give p2 Red
+    if (bal2 > bal1) return {w: p1, b: p2};
+
+    // 3. Alternation History (Tie-breaker)
+    // If last round p1 was Red, try to give Black
+    if (p1.colors.length > 0 && p1.colors[p1.colors.length-1] === '先') {
+        return {w: p2, b: p1};
+    }
+    
+    // 4. Random/Default
+    return {w: p1, b: p2};
+}
+
 function deleteLastRound(){ if(sysData.currentRound===0||!confirm("刪除最新一輪？"))return; sysData.pairings=sysData.pairings.filter(p=>p.round<sysData.currentRound); sysData.currentRound--; viewingRound=sysData.currentRound||0; updateScores(); saveCurrentGroupData(); renderPairingList(true); updateButtonsState(); }
 function updateScores(){
     const W=sysData.pointsConfig.win, D=sysData.pointsConfig.draw, L=sysData.pointsConfig.loss;
@@ -1219,9 +1337,6 @@ function getPortraitPrintStyle(theme) {
 function getReportTitle(type) {
     const abbr = sysData.info.eventAbbr || sysData.info.eventName;
     const grp = sysData.info.groupName || "公開組";
-    // Modified: Title format based on feedback [Group Name] [Report Type]
-    // Keeping Event Name in subtitle or smaller context is better, but user requested Group Name titles.
-    // We'll combine them for best clarity: [Event] [Group] [Type]
     return `${abbr} ${grp} ${type}`;
 }
 
