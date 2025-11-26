@@ -1815,6 +1815,29 @@ function generateNextRound() {
         if (unfinished.length > 0) return Swal.fire('無法配對', `第 ${unfinished[0].round} 輪還有成績未填寫！`, 'warning');
     }
 
+    // [Fix Bug #3] 確保 "輪空" 選手存在
+    // 如果系統中還沒有標記為 isBye 的選手，我們就檢查現在是否需要它
+    // 為了安全起見，如果發現沒有 Bye 選手，我們就預先檢查並建立它，以防後續退賽導致奇數人
+    const hasByeDummy = sysData.players.some(p => p.isBye);
+    if (!hasByeDummy) {
+        // 為了避免編號衝突，我們找當前最大的編號 + 1
+        const maxNum = sysData.players.reduce((max, p) => Math.max(max, p.number), 0);
+        const newNum = maxNum + 1;
+        sysData.players.push({
+            id: newNum, 
+            number: newNum, 
+            name: "輪空", 
+            points: -1, 
+            opponentPoints: 0, 
+            opponents: [], 
+            colors: [], 
+            results: [], 
+            isBye: true, 
+            isWithdrawn: false, 
+            rankNote: "" 
+        });
+    }
+
     updateScores();
     sysData.currentRound++;
     viewingRound = sysData.currentRound;
@@ -1826,6 +1849,7 @@ function generateNextRound() {
     let pairings = [];
     let byePlayer = null;
 
+    // 重新抓取 Bye Dummy (剛剛如果沒有現在肯定有了)
     const byeDummyObj = sysData.players.find(p => p.isBye);
     const byeDummyNum = byeDummyObj ? byeDummyObj.number : -1;
 
