@@ -1166,7 +1166,13 @@ function updateShareUI(active, shareId) {
         status.innerText = '分享中 (即時同步)';
         status.style.color = 'var(--success)';
         
-        const shareUrl = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
+        let shareUrl;
+if (window.location.protocol === 'file:') {
+    // 本機模式：只顯示簡短格式提示使用者需要部署
+    shareUrl = `[請部署至網頁空間] ?share=${shareId}`;
+} else {
+    shareUrl = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
+}
         urlInput.value = shareUrl;
         infoBox.style.display = 'block';
         
@@ -1198,22 +1204,43 @@ function showQRCode() {
     const container = document.getElementById('qrCodeContainer');
     const btn = document.getElementById('btnShowQR');
     
+    // 清空並顯示容器
     container.innerHTML = '';
     container.style.display = 'flex';
     btn.style.display = 'none';
 
+    // 檢查網址是否有效
+    if (!url || url.startsWith('null') || url.length > 300) {
+        container.innerHTML = `
+            <div style="text-align:center; color:#666; padding:20px;">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size:2rem; color:#f59e0b; margin-bottom:10px;"></i>
+                <p style="margin:0;">網址過長或無效，請改用「複製連結」</p>
+            </div>`;
+        return;
+    }
+
     try {
+        // 確保 QRCode 類別存在
+        if (typeof QRCode === 'undefined') {
+            throw new Error('QRCode library not loaded');
+        }
+        
         new QRCode(container, {
             text: url,
             width: 150,
             height: 150,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.L // [Fix] Lower error correction level for long URLs
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.L
         });
     } catch (e) {
         console.error("QR Code generation failed:", e);
-        container.innerHTML = '<span style="color:red">QR Code 產生失敗 (網址可能過長或含有特殊字元)</span>';
+        container.innerHTML = `
+            <div style="text-align:center; color:#666; padding:20px;">
+                <i class="fa-solid fa-circle-xmark" style="font-size:2rem; color:#ef4444; margin-bottom:10px;"></i>
+                <p style="margin:0;">QR Code 產生失敗</p>
+                <small style="color:#999;">請使用「複製連結」功能</small>
+            </div>`;
     }
 }
 
