@@ -1854,18 +1854,31 @@ function generateNextRound() {
         byePlayer = active.splice(byeIdx, 1)[0];
     }
 
+    // === [修復重點 1] 強化配對成本計算 ===
     function calculatePairingCost(p1, p2) {
         let cost = 0;
         let diff = Math.abs(p1.points - p2.points);
+        
+        // 積分差距懲罰
         if (diff === 1) cost += 500;
         else if (diff >= 2) cost += 50000000 * diff;
 
-        let t1 = getColorTrend(p1), t2 = getColorTrend(p2);
-        if ((t1 === 1 && t2 === 1) || (t1 === -1 && t2 === -1)) cost += 50; 
-        
+        // 計算先後手差值 (先 - 後)
         let bal1 = (p1.colors.filter(c=>c==='先').length) - (p1.colors.filter(c=>c==='後').length);
         let bal2 = (p2.colors.filter(c=>c==='先').length) - (p2.colors.filter(c=>c==='後').length);
-        if (bal1 * bal2 > 0) cost += 5;
+
+        // 絕對禁止：兩人都必須執黑 (差值 >= 2) 或 兩人都必須執紅 (差值 <= -2)
+        // 這是造成 #18 第四黑的主因，必須設為天價懲罰
+        if (bal1 >= 2 && bal2 >= 2) return 100000000; // 兩人都太多先
+        if (bal1 <= -2 && bal2 <= -2) return 100000000; // 兩人都太多後 (如 #18 遇上 #16)
+
+        // 強烈懲罰：兩人都傾向同一色 (雖然沒爆掉，但很難排)
+        // 例如 p1(-1) 和 p2(-1)，兩人都想執紅
+        if (bal1 * bal2 > 0) cost += 5000; 
+
+        // 連續顏色懲罰
+        let t1 = getColorTrend(p1), t2 = getColorTrend(p2);
+        if ((t1 === 1 && t2 === 1) || (t1 === -1 && t2 === -1)) cost += 500; 
 
         return cost;
     }
@@ -1916,7 +1929,8 @@ function generateNextRound() {
     solveRecursively(active, [], 0);
 
     if (!bestSolution) {
-        Swal.fire('提示', "無法找到不重複對戰組合，系統將允許重複對戰。", 'info');
+        Swal.fire('提示', "無法找到完美組合，系統將放寬條件。", 'info');
+        // 放寬邏輯 (Relaxed Solver) 保持不變，省略以節省篇幅，邏輯同上
         function solveRelaxed(currentPlayers, currentPairs, currentCost) {
             if ((Date.now() - startTime) > maxTime + 1000) return;
             if (currentCost >= bestSolutionCost) return;
@@ -1963,7 +1977,6 @@ function generateNextRound() {
     renderPairingList(true); 
     updateButtonsState();
 }
-
 function getColorTrend(p) { 
     if(p.colors.length < 2) return 0; 
     let l1 = p.colors[p.colors.length-1];
@@ -1971,31 +1984,44 @@ function getColorTrend(p) {
     return (l1==='先' && l2==='先') ? 1 : (l1==='後' && l2==='後') ? -1 : 0; 
 }
 
+// === [修復重點 2] 強制執行 FIDE 顏色規則 ===
 function assignColors(p1, p2) {
     let r1 = p1.colors.filter(c=>c==='先').length;
     let b1 = p1.colors.filter(c=>c==='後').length;
     let r2 = p2.colors.filter(c=>c==='先').length;
     let b2 = p2.colors.filter(c=>c==='後').length;
     
+    let bal1 = r1 - b1;
+    let bal2 = r2 - b2;
+
+    // 1. 絕對強制規則 (Absolute Constraints)
+    // 如果 p1 已經多 2 個後手 (bal1 <= -2)，他這輪 *必須* 執紅
+    if (bal1 <= -2) return {w: p1, b: p2};
+    // 如果 p1 已經多 2 個先手 (bal1 >= 2)，他這輪 *必須* 執黑
+    if (bal1 >= 2) return {w: p2, b: p1};
+    
+    // 同理檢查 p2
+    if (bal2 <= -2) return {w: p2, b: p1};
+    if (bal2 >= 2) return {w: p1, b: p2};
+
+    // 2. 避免連三色 (Trend Breaking)
     let t1 = getColorTrend(p1);
     let t2 = getColorTrend(p2);
 
-    if (t1 === 1 || t2 === -1) return {w: p2, b: p1};
-    if (t1 === -1 || t2 === 1) return {w: p1, b: p2};
+    if (t1 === 1 || t2 === -1) return {w: p2, b: p1}; // p1連兩先 OR p2連兩後 -> p1執黑
+    if (t1 === -1 || t2 === 1) return {w: p1, b: p2}; // p1連兩後 OR p2連兩先 -> p1執紅
 
-    let bal1 = r1 - b1;
-    let bal2 = r2 - b2;
-    
-    if (bal1 > bal2) return {w: p2, b: p1};
-    if (bal2 > bal1) return {w: p1, b: p2};
+    // 3. 平衡數量 (Equalization)
+    if (bal1 > bal2) return {w: p2, b: p1}; // p1先手比較多，給他黑
+    if (bal2 > bal1) return {w: p1, b: p2}; // p2先手比較多，給他黑
 
+    // 4. 歷史交替 (History Alternation)
     if (p1.colors.length > 0 && p1.colors[p1.colors.length-1] === '先') {
         return {w: p2, b: p1};
     }
     
     return {w: p1, b: p2};
 }
-
 function deleteLastRound(){ 
     if(sysData.currentRound===0) return;
     Swal.fire({
