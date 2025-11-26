@@ -3,12 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<!-- 設定預設的分享標題與描述 -->
-<title>瑞士制賽事直播系統</title>
-<meta name="description" content="即時賽事配對、名次與成績查詢系統">
-<meta property="og:title" content="瑞士制賽事直播系統">
-<meta property="og:description" content="點擊查看即時對陣表與成績排名">
-<meta property="og:type" content="website">
+<title>瑞士制積分編排系統 V17.68 (Permission Fix + V39 UI)</title>
 
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,12 +18,9 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-<!-- Supabase -->
+<!-- Supabase & QRCode -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<!-- [Fix] 更換為正確的 QRCode.js 函式庫，解決語法不相容導致無法產生的問題 -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
 <style>
 /* --- 核心變數 --- */
@@ -67,13 +59,6 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
 
-/* 強制禁止 Body 水平滑動，解決手機版右側留白問題 */
-html, body {
-    width: 100%;
-    overflow-x: hidden;
-    position: relative;
-}
-
 body { 
     font-family: var(--font-main); 
     background-color: var(--bg-faint); 
@@ -86,7 +71,7 @@ body {
     background-size: 20px 20px;
 }
 
-/* --- Search Highlight Animations --- */
+/* --- Search Highlight Animations (Restored V39) --- */
 @keyframes highlightPulse {
     0% { background-color: rgba(250, 204, 21, 0.3); transform: scale(1); }
     50% { background-color: rgba(250, 204, 21, 0.7); transform: scale(1.03); box-shadow: 0 0 20px rgba(250, 204, 21, 0.6); }
@@ -98,13 +83,12 @@ body {
 /* --- Top Bar --- */
 .group-bar {
     background: var(--card-bg); 
-    padding: 0 15px; 
+    padding: 0 20px; 
     height: 60px;
     display: flex; justify-content: center; align-items: center;
     box-shadow: var(--shadow-sm); 
     position: sticky; top: 0; z-index: 1000;
     border-bottom: 1px solid var(--border);
-    width: 100%;
 }
 
 .current-group-display { 
@@ -113,17 +97,13 @@ body {
     padding: 8px 16px; border-radius: 30px; 
     background: rgba(0,0,0,0.03); border: 1px solid transparent;
     transition: all 0.2s;
-    max-width: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 .current-group-display:hover { background: rgba(0,0,0,0.06); }
-.group-indicator { width: 12px; height: 12px; border-radius: 50%; background: var(--primary); display: inline-block; box-shadow: 0 0 0 2px rgba(255,255,255,0.8); flex-shrink: 0; }
+.group-indicator { width: 12px; height: 12px; border-radius: 50%; background: var(--primary); display: inline-block; box-shadow: 0 0 0 2px rgba(255,255,255,0.8); }
 
 /* Global Search */
 .search-icon-btn {
-    position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
+    position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
     cursor: pointer; font-size: 1.1rem; color: var(--text-sub); 
     width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
     transition: all 0.2s;
@@ -140,27 +120,18 @@ body {
 }
 
 /* --- Header & Layout --- */
-.container { 
-    max-width: 1200px; 
-    margin: 0 auto; 
-    padding: 15px; 
-    padding-bottom: 80px; 
-    width: 100%;
-    overflow-x: hidden; /* 防止內部元素撐開 */
-}
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; padding-bottom: 80px; }
 
-header { text-align: center; margin-bottom: 25px; margin-top: 10px; }
+header { text-align: center; margin-bottom: 30px; margin-top: 10px; }
 h1#displayEventName { 
     margin: 0; color: var(--primary-dark);
-    font-weight: 900; font-size: 1.8rem; 
+    font-weight: 900; font-size: 2rem; 
     line-height: 1.3; letter-spacing: 0.5px;
     text-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    word-break: break-word; /* 防止長標題撐開 */
 }
 .header-meta-row { 
     display: flex; justify-content: center; gap: 10px; margin-top: 8px; 
     font-size: 0.95rem; color: var(--text-sub); font-weight: 500;
-    flex-wrap: wrap;
 }
 .header-meta-item { 
     background: white; padding: 4px 12px; border-radius: 20px; 
@@ -171,30 +142,26 @@ h1#displayEventName {
 /* Nav Pills */
 .nav-pills { 
     display: flex; justify-content: center; gap: 5px; margin-bottom: 25px; 
-    background: white; padding: 5px; border-radius: 25px; 
+    background: white; padding: 5px; border-radius: 50px; 
     box-shadow: var(--shadow-md); width: fit-content; margin-left: auto; margin-right: auto; 
     border: 1px solid var(--border);
-    flex-wrap: wrap; /* 手機版自動換行 */
-    max-width: 100%;
 }
 .nav-item { 
-    padding: 8px 20px; border: none; border-radius: 20px; cursor: pointer; 
+    padding: 10px 24px; border: none; border-radius: 30px; cursor: pointer; 
     font-weight: 600; color: var(--text-sub); background: transparent; 
     transition: all 0.3s; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;
-    white-space: nowrap;
 }
 .nav-item.active { background: var(--primary); color: white; box-shadow: var(--shadow-sm); }
 .nav-item:hover:not(.active) { background: var(--bg-faint); color: var(--text-main); }
 
 /* --- Sections & Cards --- */
-.section { display: none; animation: fadeIn 0.3s ease-out; width: 100%; }
+.section { display: none; animation: fadeIn 0.3s ease-out; }
 .section.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
 .input-group { 
-    background: var(--card-bg); padding: 20px; border-radius: var(--radius); 
+    background: var(--card-bg); padding: 24px; border-radius: var(--radius); 
     box-shadow: var(--shadow-sm); margin-bottom: 20px; border: 1px solid var(--border); 
-    width: 100%;
 }
 
 /* [標題修正] */
@@ -212,9 +179,7 @@ h1#displayEventName {
 .input-group h3 i { color: var(--text-sub); font-size: 0.9em; opacity: 0.7; }
 
 /* Form Elements */
-.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-@media (max-width: 600px) { .form-grid-2 { grid-template-columns: 1fr; } }
-
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .form-label { font-size: 0.85rem; color: var(--text-sub); font-weight: 700; margin-bottom: 6px; display: block; }
 .form-input { 
     width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; 
@@ -286,7 +251,7 @@ button:active { transform: translateY(0); box-shadow: var(--shadow-sm); filter: 
     font-weight: 700; font-size: 0.85rem; letter-spacing: 0.5px;
     box-shadow: var(--shadow-sm);
 }
-/* [ROUND 樣式] */
+/* [ROUND 樣式 - 修復: 跟隨主題色] */
 .round-label { font-size: 0.85rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; }
 
 .match-content { display: flex; align-items: center; padding: 15px; gap: 10px; }
@@ -331,7 +296,6 @@ button:active { transform: translateY(0); box-shadow: var(--shadow-sm); filter: 
 .table-container { 
     background: white; border-radius: 12px; box-shadow: var(--shadow-md); 
     overflow: hidden; border: 1px solid var(--border); overflow-x: auto; 
-    width: 100%;
 }
 .modern-table { width: 100%; border-collapse: collapse; min-width: 600px; }
 .modern-table th { 
@@ -429,7 +393,7 @@ button:active { transform: translateY(0); box-shadow: var(--shadow-sm); filter: 
 div:where(.swal2-container) h2:where(.swal2-title) { font-family: var(--font-main) !important; font-size: 1.5rem !important; }
 div:where(.swal2-container) .swal2-html-container { font-family: var(--font-main) !important; }
 
-/* === B+D 成績回饋動畫 === */
+/* === B+D 成績回饋動畫 (Restored V39) === */
 
 /* B: 左側結果色條 */
 .match-card-ui.has-result {
@@ -858,7 +822,7 @@ div:where(.swal2-container) .swal2-html-container { font-family: var(--font-main
 </div>
 
 <script>
-/* --- V17.70 System Logic (Fix: QR Code Library Mismatch) --- */
+/* --- V17.68 System Logic (Fix: Permission Persistence & Sync) --- */
 const STORE_PREFIX = 'swiss_v17_';
 const MASTER_INDEX_KEY = 'swiss_v17_master_index';
 
@@ -1166,13 +1130,7 @@ function updateShareUI(active, shareId) {
         status.innerText = '分享中 (即時同步)';
         status.style.color = 'var(--success)';
         
-        let shareUrl;
-if (window.location.protocol === 'file:') {
-    // 本機模式：只顯示簡短格式提示使用者需要部署
-    shareUrl = `[請部署至網頁空間] ?share=${shareId}`;
-} else {
-    shareUrl = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
-}
+        const shareUrl = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
         urlInput.value = shareUrl;
         infoBox.style.display = 'block';
         
@@ -1204,43 +1162,22 @@ function showQRCode() {
     const container = document.getElementById('qrCodeContainer');
     const btn = document.getElementById('btnShowQR');
     
-    // 清空並顯示容器
     container.innerHTML = '';
     container.style.display = 'flex';
     btn.style.display = 'none';
 
-    // 檢查網址是否有效
-    if (!url || url.startsWith('null') || url.length > 300) {
-        container.innerHTML = `
-            <div style="text-align:center; color:#666; padding:20px;">
-                <i class="fa-solid fa-triangle-exclamation" style="font-size:2rem; color:#f59e0b; margin-bottom:10px;"></i>
-                <p style="margin:0;">網址過長或無效，請改用「複製連結」</p>
-            </div>`;
-        return;
-    }
-
     try {
-        // 確保 QRCode 類別存在
-        if (typeof QRCode === 'undefined') {
-            throw new Error('QRCode library not loaded');
-        }
-        
         new QRCode(container, {
             text: url,
             width: 150,
             height: 150,
-            colorDark: "#000000",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.L
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
         });
     } catch (e) {
         console.error("QR Code generation failed:", e);
-        container.innerHTML = `
-            <div style="text-align:center; color:#666; padding:20px;">
-                <i class="fa-solid fa-circle-xmark" style="font-size:2rem; color:#ef4444; margin-bottom:10px;"></i>
-                <p style="margin:0;">QR Code 產生失敗</p>
-                <small style="color:#999;">請使用「複製連結」功能</small>
-            </div>`;
+        container.innerHTML = '<span style="color:red">QR Code 產生失敗 (網址可能過長或含有特殊字元)</span>';
     }
 }
 
@@ -1815,29 +1752,6 @@ function generateNextRound() {
         if (unfinished.length > 0) return Swal.fire('無法配對', `第 ${unfinished[0].round} 輪還有成績未填寫！`, 'warning');
     }
 
-    // [Fix Bug #3] 確保 "輪空" 選手存在
-    // 如果系統中還沒有標記為 isBye 的選手，我們就檢查現在是否需要它
-    // 為了安全起見，如果發現沒有 Bye 選手，我們就預先檢查並建立它，以防後續退賽導致奇數人
-    const hasByeDummy = sysData.players.some(p => p.isBye);
-    if (!hasByeDummy) {
-        // 為了避免編號衝突，我們找當前最大的編號 + 1
-        const maxNum = sysData.players.reduce((max, p) => Math.max(max, p.number), 0);
-        const newNum = maxNum + 1;
-        sysData.players.push({
-            id: newNum, 
-            number: newNum, 
-            name: "輪空", 
-            points: -1, 
-            opponentPoints: 0, 
-            opponents: [], 
-            colors: [], 
-            results: [], 
-            isBye: true, 
-            isWithdrawn: false, 
-            rankNote: "" 
-        });
-    }
-
     updateScores();
     sysData.currentRound++;
     viewingRound = sysData.currentRound;
@@ -1849,7 +1763,6 @@ function generateNextRound() {
     let pairings = [];
     let byePlayer = null;
 
-    // 重新抓取 Bye Dummy (剛剛如果沒有現在肯定有了)
     const byeDummyObj = sysData.players.find(p => p.isBye);
     const byeDummyNum = byeDummyObj ? byeDummyObj.number : -1;
 
@@ -2323,10 +2236,13 @@ function printPairingList(mode) { document.getElementById('printSection').innerH
 function printRankingsPDF() { document.getElementById('printSection').innerHTML = getRankingsHTML(); window.print(); }
 function printSummaryPDF() { document.getElementById('printSection').innerHTML = getSummaryHTML(); window.print(); }
 
+// [修復: V39 完美版桌卡列印]
 function printPairingCards(){
     if(viewingRound===0) return Swal.fire('未選擇輪次');
     const ps = sysData.pairings.filter(p=>p.round===viewingRound && !p.black.isBye && !p.white.isBye);
     if(ps.length===0) return Swal.fire('本輪無有效對陣');
+    
+    // V39 Style CSS: A4 Grid, Large Fonts, DFKai-SB
     let css = `<style>
         @page { size: A4; margin: 5mm; } body { margin: 0 !important; padding: 0 !important; }
         .print-page { width: 100%; height: 285mm; display: flex; flex-wrap: wrap; align-content: flex-start; page-break-after: always; box-sizing: border-box; }
@@ -2340,6 +2256,7 @@ function printPairingCards(){
         .txt-red { color: red !important; font-weight: bold; -webkit-print-color-adjust: exact; } .txt-black { color: black !important; font-weight: bold; -webkit-print-color-adjust: exact; }
         .border-mid-thick { border-left: 3px double #000 !important; } .label-cell { font-size: 18px; font-weight: bold; }
     </style>`;
+    
     let html = css;
     for(let i=0; i<ps.length; i+=8){
         html += '<div class="print-page">';
@@ -2420,25 +2337,6 @@ function exportToExcel(){
     html += `</tbody></table></body></html>`;
     const b = new Blob([html], {type:'application/vnd.ms-excel'}); const l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = `${sysData.info.eventName}_報表.xls`; document.body.appendChild(l); l.click(); l.remove();
 }
-function openStatusModal(){ 
-    if (isViewerMode) return;
-    let l=document.getElementById('statusList'); l.innerHTML=''; 
-    updateScores();
-    let sortedList = [...sysData.players].filter(p=>!p.isBye).sort((a,b)=> { if(b.points !== a.points) return b.points - a.points; if(b.opponentPoints !== a.opponentPoints) return b.opponentPoints - a.opponentPoints; return b.sSOS - a.sSOS; });
-    sortedList.forEach((p, index)=>{ 
-        let d=document.createElement('div'); 
-        d.style.cssText="padding:12px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;background:white;"; 
-        // 安全過濾: p.name
-        d.innerHTML=`<span>第 ${index+1} 名 <span style="display:inline-block;width:24px;height:24px;border-radius:50%;background:#e0f2fe;text-align:center;line-height:24px;font-size:0.8rem;margin:0 5px">${p.number}</span> ${escapeHtml(p.name)} <small>(${p.points}分)</small></span> <button class="${p.isWithdrawn?'btn-green':'btn-red'}" onclick="toggleStatus(${p.number})" style="padding:4px 10px;font-size:0.8rem">${p.isWithdrawn?'復歸':'退賽'}</button>`; 
-        l.appendChild(d); 
-    }); 
-    document.getElementById('statusModal').style.display='block'; 
-}
-function toggleStatus(n){ let p=sysData.players.find(x=>x.number===n); if(p){p.isWithdrawn=!p.isWithdrawn;saveCurrentGroupData();openStatusModal();} }
-function batchWithdraw(){ let v=parseFloat(document.getElementById('batchScoreInput').value); if(isNaN(v))return; let c=0; sysData.players.forEach(p=>{if(!p.isBye&&!p.isWithdrawn&&p.points<v){p.isWithdrawn=true;c++;}}); if(c>0){saveCurrentGroupData();openStatusModal();Swal.fire('批次操作完成', `已退賽 ${c} 人`, 'success');} }
-function renderSummaryTable() { updateScores(); let t=document.getElementById('summaryTable'); let trs=sysData.currentRound||1; let h=`<thead><tr><th>編號</th><th>姓名</th><th>積分</th><th>對手分</th>`; for(let i=1;i<=trs;i++)h+=`<th>R${i}</th>`; h+='</tr></thead><tbody>'; sysData.players.filter(p=>!p.isBye).forEach(p=>{ 
-    // 安全過濾: p.name
-    h+=`<tr><td>${p.number}</td><td>${escapeHtml(p.name)}</td><td style="font-weight:bold;color:#ef4444">${p.points}</td><td>${p.opponentPoints}</td>`; for(let i=0;i<trs;i++){ if(i<p.opponents.length){ let res=p.results[i] || '-'; let color=res==='勝'?'#ef4444':(res==='負'?'#3b82f6':(res==='和'?'#10b981':'#999')); h+=`<td>${p.colors[i]=="先"?"🔴":"⚫"}<span style="color:${color};font-weight:bold">${res}</span></td>`; }else h+='<td></td>'; } h+='</tr>'; }); t.innerHTML=h+'</tbody>'; }
 
 async function generateNextRoundWithEffect() {
     if(viewingRound !== sysData.currentRound && sysData.currentRound > 0) return Swal.fire('請先切換至最新一輪');
@@ -2448,7 +2346,6 @@ async function generateNextRoundWithEffect() {
     await new Promise(r => setTimeout(r, 2000)); clearInterval(interval); generateNextRound(); overlay.style.display = 'none';
 }
 
-/* --- Seed Draw --- */
 function runSeedDraw() {
     const input = document.getElementById('playerInput'); const txt = input.value.trim(); if (!txt) return Swal.fire('請先輸入選手名單');
     let rawNames = txt.split('\n').map(n => n.replace(/^\d+[\.\s、]*/, '').trim()).filter(n => n); if (rawNames.length < 2) return Swal.fire('選手人數不足');
@@ -2470,7 +2367,6 @@ function showSeedReportModal(arrangement, score, adjustResult) {
         let p1 = arrangement[i], p2 = arrangement[i+1]; let warning = ""; let penalty = 0;
         if (p1.type === 'letter' && p2.type === 'letter') penalty = calculateLetterPenalty(p1.level, p2.level); else if (p1.type === 'dan' && p2.type === 'dan') penalty = calculateDanPenalty(p1.level, p2.level);
         if(penalty > 0) warning = `<span style="color:red; font-weight:bold; margin-left:5px;">⚠️ 碰撞</span>`;
-        // 安全過濾: p1.name, p2.name
         html += `<li>第 ${i/2+1} 桌：${escapeHtml(p1.name)} vs ${escapeHtml(p2.name)} ${warning}</li>`;
     }
     html += `<li>... (共 ${Math.ceil(arrangement.length/2)} 桌)</li></ul><p style="font-size:0.85rem; color:#666; margin-top:10px;">* 名單已自動更新至輸入框，請點擊「初始化首輪配對」開始比賽。</p>`;
@@ -2518,6 +2414,73 @@ function calculateScore(arr) { let score = 0; for (let i = 0; i < arr.length - 1
 function calculateLetterPenalty(l1, l2) { let p = 0; if (l1==='S' && l2==='S') p+=1000; if (l1==='A' && l2==='A') p+=500; if ((l1==='S'&&l2==='A') || (l1==='A'&&l2==='S')) p+=300; if (l1==='T' && l2==='T') p+=200; return p; }
 function calculateDanPenalty(d1, d2) { let min = Math.min(d1, d2); if (min >= 8) return 2000; if (min >= 7) return 1500; if (min >= 6) return 1000; if (min >= 5) return 700; if (min >= 4) return 400; return 0; }
 function shuffleArray(array) { let newArray = [...array]; for (let i = newArray.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [newArray[i], newArray[j]] = [newArray[j], newArray[i]]; } return newArray; }
+
+// === 修復總表顯示問題 ===
+function renderSummaryTable() {
+    // 1. 更新分數確保數據最新
+    updateScores(); 
+    
+    let t = document.getElementById('summaryTable');
+    if (!t) return;
+
+    // 2. 決定要顯示幾輪 (如果還沒開始，預設顯示 1 輪的欄位)
+    let trs = sysData.currentRound || 1;
+
+    // 3. 建立表頭 (Header)
+    let h = `<thead><tr>
+        <th>編號</th>
+        <th>姓名</th>
+        <th>積分</th>
+        <th>對手分</th>`;
+
+    for (let i = 1; i <= trs; i++) {
+        h += `<th>R${i}</th>`;
+    }
+    h += `</tr></thead><tbody>`;
+
+    // 4. 準備選手資料
+    let players = sysData.players.filter(p => !p.isBye);
+
+    // 簡單排序：積分 > 對手分 > 號碼
+    players.sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.opponentPoints !== a.opponentPoints) return b.opponentPoints - a.opponentPoints;
+        return a.number - b.number;
+    });
+
+    // 5. 建立內容 (Body)
+    if (players.length === 0) {
+        // 如果沒有選手，顯示提示訊息，避免畫面全白
+        h += `<tr><td colspan="${4 + trs}" style="padding:30px; color:#9ca3af; text-align:center;">
+            <i class="fa-solid fa-circle-info"></i> 尚無資料，請先至「設定」頁面輸入選手並初始化。
+        </td></tr>`;
+    } else {
+        players.forEach(p => {
+            let safeName = escapeHtml(p.name);
+            h += `<tr>
+                <td>${p.number}</td>
+                <td style="font-weight:500;">${safeName}</td>
+                <td style="font-weight:bold;color:#ef4444">${p.points}</td>
+                <td>${p.opponentPoints}</td>`;
+
+            for (let i = 0; i < trs; i++) {
+                if (i < p.opponents.length) {
+                    let res = p.results[i] || '-';
+                    // 設定勝負顏色
+                    let color = res === '勝' ? '#ef4444' : (res === '負' ? '#3b82f6' : (res === '和' ? '#10b981' : '#999'));
+                    // 設定先後手圖示
+                    let stone = p.colors[i] == "先" ? "🔴" : "⚫";
+                    h += `<td><span style="font-size:0.8em; margin-right:4px;">${stone}</span><span style="color:${color};font-weight:bold">${res}</span></td>`;
+                } else {
+                    h += '<td></td>';
+                }
+            }
+            h += '</tr>';
+        });
+    }
+
+    t.innerHTML = h + '</tbody>';
+}
 </script>
 </body>
 </html>
