@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<!-- 設定預設的分享標題與描述 (爬蟲只看得到這裡) -->
+<!-- 設定預設的分享標題與描述 -->
 <title>瑞士制賽事直播系統</title>
 <meta name="description" content="即時賽事配對、名次與成績查詢系統">
 <meta property="og:title" content="瑞士制賽事直播系統">
@@ -23,9 +23,12 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<!-- Supabase & QRCode -->
+
+<!-- Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
+<!-- [Fix] 更換為正確的 QRCode.js 函式庫，解決語法不相容導致無法產生的問題 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <style>
 /* --- 核心變數 --- */
@@ -64,7 +67,7 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
 
-/* [Fix] 強制禁止 Body 水平滑動，解決手機版右側留白問題 */
+/* 強制禁止 Body 水平滑動，解決手機版右側留白問題 */
 html, body {
     width: 100%;
     overflow-x: hidden;
@@ -137,7 +140,6 @@ body {
 }
 
 /* --- Header & Layout --- */
-/* [Fix] Container 寬度與 Padding 調整 */
 .container { 
     max-width: 1200px; 
     margin: 0 auto; 
@@ -167,13 +169,12 @@ h1#displayEventName {
 }
 
 /* Nav Pills */
-/* [Fix] 導航列在手機上自動換行，避免撐開 */
 .nav-pills { 
     display: flex; justify-content: center; gap: 5px; margin-bottom: 25px; 
     background: white; padding: 5px; border-radius: 25px; 
     box-shadow: var(--shadow-md); width: fit-content; margin-left: auto; margin-right: auto; 
     border: 1px solid var(--border);
-    flex-wrap: wrap; /* 關鍵修正 */
+    flex-wrap: wrap; /* 手機版自動換行 */
     max-width: 100%;
 }
 .nav-item { 
@@ -857,7 +858,7 @@ div:where(.swal2-container) .swal2-html-container { font-family: var(--font-main
 </div>
 
 <script>
-/* --- V17.69 System Logic (Fix: Mobile Layout & QR Code) --- */
+/* --- V17.70 System Logic (Fix: QR Code Library Mismatch) --- */
 const STORE_PREFIX = 'swiss_v17_';
 const MASTER_INDEX_KEY = 'swiss_v17_master_index';
 
