@@ -201,10 +201,10 @@ div:where(.swal2-container) .swal2-html-container { font-family: var(--font-main
     display: inline-block;
 }
 
-/* 2. 三連色：放在選手框框內部 (右上角) */
+/* 2. 三連色警告 (修正層級與位置) */
 .player-warn-badge {
     position: absolute;
-    top: -8px;  
+    top: -10px; /* 稍微再往上一點 */
     right: -5px;
     background: #f97316; /* 橘色 */
     color: white;
@@ -212,10 +212,11 @@ div:where(.swal2-container) .swal2-html-container { font-family: var(--font-main
     font-weight: 800;
     padding: 2px 8px;
     border-radius: 10px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-    z-index: 15;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    z-index: 100; /* 提高層級，確保浮在最上層 */
     border: 2px solid white;
     animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    pointer-events: none; /* 避免擋住點擊 */
 }
 
 @keyframes bounceIn {
@@ -1124,37 +1125,42 @@ function calcScoreBeforeRound(num, tr) {
     sysData.pairings.forEach(p=>{ if(p.round < tr && p.result!==null){ if(p.white.number===num){ tot+=(p.black.isBye||p.result===1)?W:(p.result===0.5?D:L); } else if(p.black.number===num){ tot+=(p.white.isBye||p.result===0)?W:(p.result===0.5?D:L); } } });
     return tot;
 }
-// 檢查是否將構成三連色 (FIDE 精神修復版：輪空視為透明，不打斷連續性)
+// 檢查是否將構成三連色 (V18.1 加強版：加入時間排序防呆)
 function checkThreeColorStreak(player, currentColor) {
     if (!player || !player.colors) return false;
     
     // 如果「這一輪」傳進來的顏色是 '空' (或是 undefined)，直接不判斷
-    // 這解決了「輪空上面有產生連三後標記」的問題
     if (!currentColor || currentColor === '空') return false;
 
-    // 找出他在 viewingRound 以前的所有「實際執色」 (不含本輪，且過濾掉輪空)
-    let pastColors = [];
-    sysData.pairings.forEach(p => {
-        if (p.round < viewingRound) { 
-            // 只有當「對手不是輪空」時，才將顏色計入歷史
-            if (p.white.number === player.number) {
-                if (!p.black.isBye) pastColors.push('先'); 
-            } else if (p.black.number === player.number) {
-                if (!p.white.isBye) pastColors.push('後'); 
-            }
-            // 如果該場次是對戰輪空 (p.black.isBye 或 p.white.isBye)
-            // 程式不會 push 任何東西進去
-            // 這樣就達成了「先、先、輪空」 -> 歷史紀錄為 ['先', '先'] 的效果
+    // 1. 取得該選手過去的所有對局
+    // 必須過濾掉本輪(viewingRound)之後的，只看歷史
+    let myPastGames = sysData.pairings.filter(p => 
+        p.round < viewingRound && 
+        (p.white.number === player.number || p.black.number === player.number)
+    );
+
+    // 2. ★關鍵修正：確保依照「輪次」排序★
+    // 避免因為刪除輪次導致資料庫順序錯亂，造成誤判
+    myPastGames.sort((a, b) => a.round - b.round);
+
+    // 3. 依序重建顏色歷史 (過濾掉輪空局)
+    let validColorHistory = [];
+    myPastGames.forEach(p => {
+        if (p.white.number === player.number) {
+            // 我是紅方，若對手不是輪空，則計入「先」
+            if (!p.black.isBye) validColorHistory.push('先');
+        } else {
+            // 我是黑方，若對手不是輪空，則計入「後」
+            if (!p.white.isBye) validColorHistory.push('後');
         }
     });
 
-    let len = pastColors.length;
-    // 如果歷史場次少於 2 場，不可能構成三連
+    let len = validColorHistory.length;
+    // 如果有效場次少於 2 場，不可能構成三連
     if (len < 2) return false;
 
-    // 檢查邏輯：
-    // 歷史最後兩次實際顏色 === 本次預計顏色 -> 構成三連色
-    return (pastColors[len-1] === currentColor && pastColors[len-2] === currentColor);
+    // 4. 檢查：歷史最後兩次實際顏色 === 本次預計顏色
+    return (validColorHistory[len-1] === currentColor && validColorHistory[len-2] === currentColor);
 }
 /* === 修復後的 renderPairingList (解決輪空警告問題) === */
 function renderPairingList(animate = false, highlightNumber = null){
