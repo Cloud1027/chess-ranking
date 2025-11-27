@@ -262,7 +262,7 @@ div:where(.swal2-container) .swal2-html-container { font-family: var(--font-main
                 <!-- 大循環開關 -->
                 <div class="compact-card cc-rr">
                     <div class="cc-label"><span><i class="fa-solid fa-circle-nodes" style="color:#8b5cf6"></i></span>啟用大循環</div>
-                    <input type="checkbox" id="isRoundRobin" onchange="saveCurrentGroupData()">
+                    <input type="checkbox" id="isRoundRobin" onclick="handleRRClick(this)">
                 </div>
             </div>
             <div style="margin-top:15px;">
@@ -610,6 +610,27 @@ function saveCurrentGroupData() {
     updateHeaderDisplay();
     if (currentShareId) syncToCloud();
 }
+
+/* 新增：處理大循環切換的防呆邏輯 */
+function handleRRClick(cb) {
+    // 檢查是否已經產生過配對 (currentRound > 0 表示比賽已開始)
+    if (sysData.currentRound > 0) {
+        // 防止勾選狀態改變 (視覺上跳回原狀)
+        cb.checked = !cb.checked; 
+        
+        // 彈出警告視窗
+        Swal.fire({
+            title: '禁止變更賽制',
+            text: '比賽已經開始 (已有輪次產生)，無法中途切換賽制！\n若必須切換，請先點擊「重置」按鈕清空賽程。',
+            icon: 'error',
+            confirmButtonColor: '#ef4444'
+        });
+        return;
+    }
+    // 如果比賽還沒開始，就允許變更並儲存
+    saveCurrentGroupData();
+}
+
 function applyTheme(colorName) { document.body.className = `theme-${colorName}` + (isViewerMode ? ' viewer-mode' : ''); document.getElementById('themeSelect').value = colorName; }
 function updateThemeFromSelect() { applyTheme(document.getElementById('themeSelect').value); }
 function updateHeaderDisplay() {
@@ -691,7 +712,7 @@ function performInit(){
     const ns = txt.split('\n').map(n=>n.replace(/^\d+[\.\s、]*/, '').trim()).filter(n=>n); if(ns.length<2) return Swal.fire('選手人數不足', '至少需要 2 人', 'error');
     sysData.players = ns.map((n,i)=>({id:i+1, number:i+1, name:n, points:0, opponentPoints:0, opponents:[], colors:[], results:[], isBye:false, isWithdrawn:false, rankNote: "" }));
     // 只有在瑞士制下，奇數才需要補輪空位；大循環時，演算法會自動處理虛擬輪空
-    if(!sysData.settings.isRoundRobin && sysData.players.length % 2 !== 0) sysData.players.push({ id:sysData.players.length+1, number:sysData.players.length+1, name:"輪空", points:-1, opponentPoints:0, opponents:[], colors:[], results:[], isBye:true, isWithdrawn:false, rankNote: "" });
+   if(sysData.players.length % 2 !== 0) sysData.players.push({ id:sysData.players.length+1, number:sysData.players.length+1, name:"輪空", points:-1, opponentPoints:0, opponents:[], colors:[], results:[], isBye:true, isWithdrawn:false, rankNote: "" });
     sysData.currentRound=0; viewingRound=0; sysData.pairings=[];
     generateNextRound(); showSection('pairing', document.querySelectorAll('.nav-item')[1]); Swal.fire({ icon: 'success', title: '初始化成功', timer: 1500, showConfirmButton: false });
 }
@@ -976,19 +997,32 @@ function updateScores(){
     const W=sysData.pointsConfig.win, D=sysData.pointsConfig.draw, L=sysData.pointsConfig.loss;
     const isRR = sysData.settings.isRoundRobin;
 
+    // 清空現有數據
     sysData.players.forEach(p=>{ p.points=0; p.opponents=[]; p.colors=[]; p.results=[]; });
+
     sysData.pairings.forEach(p=>{
-        let w=sysData.players.find(x=>x.number===p.white.number), b=sysData.players.find(x=>x.number===p.black.number);
-        if(w&&b){ 
+        let w=sysData.players.find(x=>x.number===p.white.number);
+        let b=sysData.players.find(x=>x.number===p.black.number);
+        
+        if(w && b){ 
             w.opponents.push(b.number); b.opponents.push(w.number); 
-            w.colors.push('先'); b.colors.push('後'); 
             
+            // ★★★ 修改重點開始：輪空局不計顏色 ★★★
+            if (p.black.isBye || p.white.isBye) {
+                w.colors.push('空'); 
+                b.colors.push('空');
+            } else {
+                w.colors.push('先'); 
+                b.colors.push('後'); 
+            }
+            // ★★★ 修改重點結束 ★★★
+
             if(p.result === null) {
                 w.results.push(''); b.results.push(''); 
             } else if(p.black.isBye){ 
                 w.points+=W; w.results.push('勝'); 
             } else if(p.white.isBye){
-                // 處理白方輪空的情況 (RR 演算法可能產生)
+                // 處理白方輪空 (大循環可能發生)
                 b.points+=W; b.results.push('勝');
             } else { 
                 if(p.result===1){w.points+=W;b.points+=L;w.results.push('勝');b.results.push('負');} 
@@ -998,13 +1032,11 @@ function updateScores(){
         }
     });
 
-    // 對手分 / SB 分計算
+    // 計算對手分 (SOS / SB)
     const cr = sysData.settings.oppScoreRounds||5;
-    
     sysData.players.forEach(p => {
         if (isRR) {
-            // SB分 (Sonneborn-Berger): 贏的對手總分 + 和的對手總分的一半
-            // 注意：輪空勝通常不計入 SB，或視規則而定。這裡採取標準：不計輪空分數(因為輪空沒分)，只看擊敗的對手實力
+            // 大循環 SB分
             let sb = 0;
             p.opponents.forEach((oNum, idx) => {
                 let op = sysData.players.find(x => x.number === oNum);
@@ -1024,7 +1056,7 @@ function updateScores(){
         }
     });
 
-    // 累進分 (sSOS) 或其他輔助分維持原樣，主要用於瑞士制，大循環較少用，但保留無妨
+    // 累進分維持不變
     sysData.players.forEach(p=>{ p.sSOS = p.opponents.reduce((a,o)=>{ let op=sysData.players.find(x=>x.number===o); return a+((op&&!op.isBye)?op.opponentPoints:0); },0); });
 }
 
@@ -1176,18 +1208,63 @@ function getRankingsHTML() {
 function getSummaryHTML() {
     updateScores(); 
     let displayList = [...sysData.players].filter(p => !p.isBye).sort((a, b) => a.number - b.number);
-    let rankedList = [...sysData.players].filter(p => !p.isBye).sort((a, b) => { if (b.points !== a.points) return b.points - a.points; if (b.opponentPoints !== a.opponentPoints) return b.opponentPoints - a.opponentPoints; let h2h = getH2HWinner(a, b); if (h2h !== 0) return h2h; if (b.wins !== a.wins) return b.wins - a.wins; return b.sSOS - a.sSOS; });
-    let rankMap = {}; rankedList.forEach((p, i) => rankMap[p.number] = i + 1);
-    let trs = sysData.currentRound || 1; const theme = getThemeColorObj();
+    // 這裡我們不需要另外排序，因為 displayList 已經是依號碼排序
+    let rankMap = {}; 
+    // 為了取得排名，我們需要另外算一份
+    let rankedList = [...sysData.players].filter(p => !p.isBye).sort((a, b) => { 
+        if (b.points !== a.points) return b.points - a.points; 
+        if (b.opponentPoints !== a.opponentPoints) return b.opponentPoints - a.opponentPoints; 
+        let h2h = getH2HWinner(a, b); 
+        if (h2h !== 0) return h2h; 
+        if (b.wins !== a.wins) return b.wins - a.wins; 
+        return b.sSOS - a.sSOS; 
+    });
+    rankedList.forEach((p, i) => rankMap[p.number] = i + 1);
+
+    let trs = sysData.currentRound || 1; 
+    const theme = getThemeColorObj();
     const rowH = 180 / (displayList.length + 2.5);
     const roundColsHtml = Array.from({length:trs},(_,i)=>`<col style="width:${(76.5/(trs*3)).toFixed(4)}%"><col style="width:${(76.5/(trs*3)).toFixed(4)}%"><col style="width:${(76.5/(trs*3)).toFixed(4)}%">`).join('');
+    
     let h = `<style>@page{size:landscape;margin:5mm;}body{font-family:"Noto Sans TC",sans-serif;-webkit-print-color-adjust:exact;background:white;margin:0;padding:0;width:100%;}.print-container{width:100%!important;margin:0;padding:0;display:block;}.print-header{width:100%;text-align:center;height:35px;line-height:35px;border-bottom:3px solid #333;margin-bottom:2px;}.print-header h1{font-size:24pt;color:#111;margin:0;font-weight:900;}.print-report-table{width:100%!important;border-collapse:collapse;border:3px solid #333;table-layout:fixed;}.print-report-table th{background-color:${theme.head}!important;color:white!important;text-align:center;font-size:11pt;font-weight:900;border:1px solid #000;height:21px;overflow:hidden;white-space:nowrap;}.print-report-table td{height:${Math.max(5.5, Math.min(14, rowH))}mm;font-size:${Math.max(9, Math.min(15, rowH*2.2))}pt;text-align:center;color:#000;border:1px solid #000;font-weight:900;white-space:nowrap;padding:0;overflow:hidden;line-height:0.95;}.print-report-table tr:nth-child(even) td{background-color:${theme.row}!important;}.print-name-cell{text-align:center!important;padding-left:0;font-weight:500!important;}.rank-score{color:#dc2626!important;font-weight:900!important;}.rank-badge{background:#000;color:#fff;border-radius:4px;padding:0 4px;display:inline-block;line-height:1.2;font-size:0.9em;}.footer-table{width:100%;border:none;margin-top:5px;}.footer-table td{border:none;text-align:left;font-size:14pt;font-weight:bold;padding:0 10px;height:auto;background:transparent!important;}</style>` + `<div class="print-container"><div class="print-header"><h1>${sysData.info.eventName} ${sysData.info.groupName||""} 成績總表</h1></div><table class="print-report-table"><colgroup><col style="width:2.8%"><col style="width:3.1%"><col style="width:7.5%"><col style="width:3.5%"><col style="width:3.8%"><col style="width:2.8%">${roundColsHtml}</colgroup><thead><tr><th colspan="6">基本資料</th>${Array.from({length:trs},(_,i)=>`<th colspan="3">第 ${i+1} 輪</th>`).join('')}</tr><tr><th>編號</th><th>排名</th><th>姓名</th><th>積分</th><th>${sysData.settings.isRoundRobin?'SB分':'對手分'}</th><th>先手</th>${Array.from({length:trs},()=>`<th>對手</th><th>先後</th><th>結果</th>`).join('')}</tr></thead><tbody>`;
+    
     displayList.forEach(p => {
         let wCnt = p.colors.filter(c => c === '先').length;
         h += `<tr><td>${p.number}</td><td><span class="rank-badge">${rankMap[p.number]||'-'}</span></td><td class="print-name-cell">${escapeHtml(p.name)}</td><td class="rank-score">${p.points}</td><td>${p.opponentPoints}</td><td>${wCnt}</td>`;
-        for(let i=0; i<trs; i++){ if(i < p.opponents.length){ let res = p.results[i]; let colorStyle = p.colors[i] === '先' ? "background-color: #ffecd9 !important; -webkit-print-color-adjust: exact;" : "background-color: #dbeafe !important; -webkit-print-color-adjust: exact;"; let resStyle = res === '勝' ? 'color:#dc2626 !important;font-weight:900' : (res === '負' ? 'color:#2563eb !important;font-weight:900' : (res === '和' ? 'color:#16a34a !important;font-weight:900' : '#999')); h += `<td>${p.opponents[i]}</td><td style="${colorStyle}">${p.colors[i]}</td><td style="${resStyle}">${res}</td>`; } else { h += '<td></td><td></td><td></td>'; } } h += `</tr>`;
-    });
-    h += `</tbody></table><table class="footer-table"><tr><td width="33%">裁判長：${sysData.signatures.ref}</td><td width="34%" style="text-align:center">列印時間：${new Date().toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'})}</td><td width="33%" style="text-align:right">賽務長：${sysData.signatures.dir}</td></tr></table></div>`; return h;
+        
+        for(let i=0; i<trs; i++){ 
+            if(i < p.opponents.length){ 
+                let res = p.results[i] || '-'; 
+                let colorText = p.colors[i]; 
+
+                // --- 設定輪空的顏色樣式 ---
+                let bgStyle = "";
+                let valDisplay = colorText;
+
+                if (colorText === '空') {
+                    // 輪空：背景淡灰，文字紫色
+                    bgStyle = "background-color:#f3f4f6 !important; -webkit-print-color-adjust: exact; color:#7e22ce !important; font-weight:900;";
+                    valDisplay = "空"; 
+                } else {
+                    // 正常：先(橘色) / 後(藍色)
+                    bgStyle = colorText === '先' 
+                        ? "background-color: #ffecd9 !important; -webkit-print-color-adjust: exact;" 
+                        : "background-color: #dbeafe !important; -webkit-print-color-adjust: exact;";
+                }
+                // -----------------------------
+
+                let resStyle = res === '勝' ? 'color:#dc2626 !important;font-weight:900' : (res === '負' ? 'color:#2563eb !important;font-weight:900' : (res === '和' ? 'color:#16a34a !important;font-weight:900' : '#999')); 
+                
+                h += `<td>${sysData.players.find(x=>x.number===p.opponents[i])?.isBye?"輪":p.opponents[i]}</td><td style="${bgStyle}">${valDisplay}</td><td style="${resStyle}">${res}</td>`; 
+            } else { 
+                h += '<td></td><td></td><td></td>'; 
+            } 
+        }
+        h += `</tr>`; // ★★★ 您原本少了這行！ (結束 tr)
+    }); // ★★★ 您原本少了這行！ (結束 forEach)
+
+    h += `</tbody></table><table class="footer-table"><tr><td width="33%">裁判長：${sysData.signatures.ref}</td><td width="34%" style="text-align:center">列印時間：${new Date().toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'})}</td><td width="33%" style="text-align:right">賽務長：${sysData.signatures.dir}</td></tr></table></div>`; 
+    return h;
 }
 function printPairingList(mode) { document.getElementById('printSection').innerHTML = getPairingListHTML(mode); window.print(); }
 function printRankingsPDF() { document.getElementById('printSection').innerHTML = getRankingsHTML(); window.print(); }
@@ -1253,7 +1330,6 @@ function performSeedDraw(players) { return { arrangement: shuffleArray(players),
 function shuffleArray(array) { let newArray = [...array]; for (let i = newArray.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [newArray[i], newArray[j]] = [newArray[j], newArray[i]]; } return newArray; }
 // === 修復：網頁版成績總表渲染函式 ===
 function renderSummaryTable() {
-    // 1. 更新分數確保數據最新
     updateScores(); 
     
     let t = document.getElementById('summaryTable');
@@ -1306,8 +1382,17 @@ function renderSummaryTable() {
                     let res = p.results[i] || '-';
                     // 設定勝負顏色
                     let color = res === '勝' ? '#ef4444' : (res === '負' ? '#3b82f6' : (res === '和' ? '#10b981' : '#999'));
+                    
                     // 設定先後手圖示
-                    let stone = p.colors[i] == "先" ? "🔴" : "⚫";
+                    let stone;
+                    if (p.colors[i] === '空') {
+                        // 輪空顯示灰色圓點
+                        stone = '<span style="color:#9ca3af; font-size:1.1em;">●</span>'; 
+                    } else {
+                        // 正常顯示紅/黑
+                        stone = p.colors[i] == "先" ? "🔴" : "⚫";
+                    } // <--- 您原本少了這個大括號，導致語法錯誤
+
                     h += `<td><span style="font-size:0.8em; margin-right:4px;">${stone}</span><span style="color:${color};font-weight:bold">${res}</span></td>`;
                 } else {
                     h += '<td></td>';
