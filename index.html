@@ -20,7 +20,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <!-- Supabase & QRCode -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <style>
 /* --- 核心變數 --- */
@@ -617,7 +617,7 @@ html, body {
                     <button id="btnShowQR" class="btn-blue" onclick="showQRCode()" style="font-size:0.9rem; padding:8px 15px;">
                         <i class="fa-solid fa-qrcode"></i> 顯示 QR Code
                     </button>
-                    <div id="qrCodeContainer" style="display:none; background:white; padding:10px; border-radius:8px; margin-top:10px; justify-content:center;"></div>
+                    <div id="qrCodeContainer" style="display:none; background:white; padding:15px; border-radius:8px; margin-top:10px; justify-content:center; align-items:center; flex-direction:column; width:fit-content; margin-left:auto; margin-right:auto;"></div>
                 </div>
             </div>
             
@@ -1206,10 +1206,11 @@ function updateShareUI(active, shareId) {
         urlInput.value = shareUrl;
         infoBox.style.display = 'block';
         
-        // Reset QR Code area
+        // Reset QR Code area (完整清除以便重新產生)
         qrContainer.innerHTML = '';
         qrContainer.style.display = 'none';
-        document.getElementById('btnShowQR').style.display = 'inline-block';
+        const btnQR = document.getElementById('btnShowQR');
+        if (btnQR) btnQR.style.display = 'inline-block';
 
         // Warning for file:// protocol
         if (window.location.protocol === 'file:') {
@@ -1234,6 +1235,14 @@ function showQRCode() {
     const container = document.getElementById('qrCodeContainer');
     const btn = document.getElementById('btnShowQR');
     
+    // 防止重複產生：如果已經有 QR Code 就不再產生
+    if (container.querySelector('canvas') || container.querySelector('img')) {
+        container.style.display = 'flex';
+        btn.style.display = 'none';
+        return;
+    }
+    
+    // 清空並顯示容器
     container.innerHTML = '';
     container.style.display = 'flex';
     btn.style.display = 'none';
@@ -1241,15 +1250,30 @@ function showQRCode() {
     try {
         new QRCode(container, {
             text: url,
-            width: 150,
-            height: 150,
+            width: 180,
+            height: 180,
             colorDark : "#000000",
             colorLight : "#ffffff",
             correctLevel : QRCode.CorrectLevel.H
         });
+        
+        // 確保 QR Code 圖片正確顯示
+        setTimeout(() => {
+            const img = container.querySelector('img');
+            const canvas = container.querySelector('canvas');
+            if (img) {
+                img.style.display = 'block';
+                img.style.margin = '0 auto';
+            }
+            if (canvas) {
+                canvas.style.display = 'block';
+                canvas.style.margin = '0 auto';
+            }
+        }, 100);
+        
     } catch (e) {
         console.error("QR Code generation failed:", e);
-        container.innerHTML = '<span style="color:red">QR Code 產生失敗 (網址可能過長或含有特殊字元)</span>';
+        container.innerHTML = '<span style="color:red; padding:20px;">QR Code 產生失敗</span>';
     }
 }
 
