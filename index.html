@@ -125,7 +125,19 @@ button:active { transform: translateY(0); box-shadow: var(--shadow-sm); filter: 
     border: 2px solid white;      /* 白色邊框，讓黑圈更明顯 */
     position: relative;
     top: -2px;
-}.player-name { font-weight: 800; font-size: 1.15rem; display: block; line-height: 1.2; margin-bottom: 6px; color: var(--text-main); }
+}
+/* --- 表格內的號碼球微調樣式 --- */
+.table-badge {
+    width: 24px;              /* 比卡片的 28px 稍微小一點，節省空間 */
+    height: 24px;
+    font-size: 0.8rem;        /* 字體稍微縮小 */
+    margin: 0 auto;           /* 強制水平置中 */
+    box-shadow: none;         /* 表格內不需要陰影，保持扁平乾淨 */
+    border: 1px solid white;  /* 邊框改細一點 */
+    top: 0;                   /* 不需要微調位置 */
+    vertical-align: middle;   /* 垂直置中 */
+}
+.player-name { font-weight: 800; font-size: 1.15rem; display: block; line-height: 1.2; margin-bottom: 6px; color: var(--text-main); }
 .player-score { font-size: 0.8rem; color: white; background: var(--text-sub); padding: 2px 10px; border-radius: 12px; font-weight: 600; opacity: 0.8; }
 .vs-area { width: 100px; display: flex; flex-direction: column; align-items: center; gap: 5px; flex-shrink: 0; }
 .btn-res-group { display: flex; width: 100%; border-radius: 8px; overflow: hidden; box-shadow: var(--shadow-sm); }
@@ -1664,7 +1676,7 @@ function updateRankings(){
     let tbody = document.querySelector('#rankingTable tbody'); tbody.innerHTML = '';
     s.forEach((p,i)=>{
         let tr = document.createElement('tr'); let rankD = i<3 ? ['🥇','🥈','🥉'][i] : (i+1);
-        tr.innerHTML = `<td>${rankD}</td><td>${p.number}</td><td><span class="clickable-name" onclick="showPlayerHistory(${p.number})">${escapeHtml(p.name)}</span></td><td style="font-weight:bold;color:#dc2626">${p.points}</td><td>${p.opponentPoints}</td><td>${p.h2hDisplay}</td><td>${p.wins}</td><td>${p.bWins}</td><td>${p.bCnt}</td><td>${p.sSOS}</td><td>${p.isWithdrawn?'(退)':''} <input type="text" value="${escapeHtml(p.rankNote||'')}" onchange="updatePlayerNote(${p.number}, this.value)" style="width:60px;border:none;background:transparent;border-bottom:1px solid #ccc;text-align:center;"></td>`;
+        tr.innerHTML = `<td>${rankD}</td><td><span class="player-num-badge table-badge">${p.number}</span></td><td><span class="clickable-name" onclick="showPlayerHistory(${p.number})">${escapeHtml(p.name)}</span></td><td style="font-weight:bold;color:#dc2626">${p.points}</td><td>${p.opponentPoints}</td><td>${p.h2hDisplay}</td><td>${p.wins}</td><td>${p.bWins}</td><td>${p.bCnt}</td><td>${p.sSOS}</td><td>${p.isWithdrawn?'(退)':''} <input type="text" value="${escapeHtml(p.rankNote||'')}" onchange="updatePlayerNote(${p.number}, this.value)" style="width:60px;border:none;background:transparent;border-bottom:1px solid #ccc;text-align:center;"></td>`;
         tbody.appendChild(tr);
     });
 }
@@ -1746,7 +1758,7 @@ function getSummaryHTML() {
     
     displayList.forEach(p => {
         let wCnt = p.colors.filter(c => c === '先').length;
-        h += `<tr><td>${p.number}</td><td><span class="rank-badge">${rankMap[p.number]||'-'}</span></td><td class="print-name-cell">${escapeHtml(p.name)}</td><td class="rank-score">${p.points}</td><td>${p.opponentPoints}</td><td>${wCnt}</td>`;
+        h += `<tr><td><span class="player-num-badge table-badge">${p.number}</span></td><td><span class="rank-badge">${rankMap[p.number]||'-'}</span></td><td class="print-name-cell">${escapeHtml(p.name)}</td><td class="rank-score">${p.points}</td><td>${p.opponentPoints}</td><td>${wCnt}</td>`;
         
         for(let i=0; i<trs; i++){ 
             if(i < p.opponents.length){ 
@@ -1845,6 +1857,7 @@ function getPlayerLevel(name) { let type = getPlayerType(name); if (type === 'le
 function performSeedDraw(players) { return { arrangement: shuffleArray(players), score: 0 }; } // Simplified
 function shuffleArray(array) { let newArray = [...array]; for (let i = newArray.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [newArray[i], newArray[j]] = [newArray[j], newArray[i]]; } return newArray; }
 // === 修復：網頁版成績總表渲染函式 ===
+// === 網頁版成績總表渲染函式 (修正編號圓圈樣式) ===
 function renderSummaryTable() {
     updateScores(); 
     
@@ -1887,8 +1900,12 @@ function renderSummaryTable() {
     } else {
         players.forEach(p => {
             let safeName = escapeHtml(p.name);
+            
+            // --- 每一列的 HTML 組合 ---
             h += `<tr>
-                <td>${p.number}</td>
+                <!-- ★★★ 修改重點：加上 player-num-badge table-badge class ★★★ -->
+                <td><span class="player-num-badge table-badge">${p.number}</span></td>
+                
                 <td style="font-weight:500;">${safeName}</td>
                 <td style="font-weight:bold;color:#ef4444">${p.points}</td>
                 <td>${p.opponentPoints}</td>`;
@@ -1902,12 +1919,10 @@ function renderSummaryTable() {
                     // 設定先後手圖示
                     let stone;
                     if (p.colors[i] === '空') {
-                        // 輪空顯示灰色圓點
                         stone = '<span style="color:#9ca3af; font-size:1.1em;">●</span>'; 
                     } else {
-                        // 正常顯示紅/黑
                         stone = p.colors[i] == "先" ? "🔴" : "⚫";
-                    } // <--- 您原本少了這個大括號，導致語法錯誤
+                    }
 
                     h += `<td><span style="font-size:0.8em; margin-right:4px;">${stone}</span><span style="color:${color};font-weight:bold">${res}</span></td>`;
                 } else {
