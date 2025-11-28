@@ -271,6 +271,54 @@ div:where(.swal2-container) .swal2-html-container { font-family: var(--font-main
     60% { transform: scale(1.1); }
     100% { transform: scale(1); opacity: 1; }
 }
+/* --- 新增：完賽進度標籤樣式 --- */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-left: 12px;
+    vertical-align: middle;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    opacity: 0;
+    transform: scale(0.9);
+}
+.status-pill.show {
+    opacity: 1;
+    transform: scale(1);
+}
+/* 未完賽狀態 (橘色) */
+.status-pill.pending {
+    background: #fff7ed;
+    color: #c2410c;
+    border: 1px solid #fed7aa;
+}
+.status-pill.pending i { animation: pulseIcon 2s infinite; }
+/* 全數完賽狀態 (綠色) */
+.status-pill.completed {
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+}
+
+@keyframes pulseIcon {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+
+/* 手機版調整：讓標題跟標籤垂直排列，避免擁擠 */
+@media (max-width: 600px) {
+    #roundHeaderContainer {
+        flex-direction: column;
+        gap: 5px;
+    }
+    .status-pill { margin-left: 0; margin-top: 5px; }
+}
 </style>
 </head>
 <body class="theme-blue">
@@ -397,11 +445,18 @@ div:where(.swal2-container) .swal2-html-container { font-family: var(--font-main
 
     <!-- 2. 配對區 -->
     <div id="pairing" class="section">
-        <div style="display:flex; justify-content:center; align-items:center; gap:20px; margin-bottom:20px;">
-            <button class="btn-outline" style="border-radius:50%; width:40px; height:40px; padding:0;" onclick="changeViewRound(-1)"><i class="fa-solid fa-chevron-left"></i></button>
-            <h2 id="roundTitle" style="margin:0; min-width:120px; text-align:center; color:var(--primary-dark); font-weight:800;">第 0 輪</h2>
-            <button class="btn-outline" style="border-radius:50%; width:40px; height:40px; padding:0;" onclick="changeViewRound(1)"><i class="fa-solid fa-chevron-right"></i></button>
-        </div>
+        <!-- 修改後的結構 -->
+<div style="display:flex; justify-content:center; align-items:center; gap:15px; margin-bottom:20px;">
+    <button class="btn-outline" style="border-radius:50%; width:40px; height:40px; padding:0; flex-shrink:0;" onclick="changeViewRound(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+    
+    <!-- 中間改為直式排列容器，包含標題與新標籤 -->
+    <div id="roundHeaderContainer" style="display:flex; flex-direction:column; align-items:center; min-width:140px;">
+        <h2 id="roundTitle" style="margin:0; color:var(--primary-dark); font-weight:800; line-height:1.2;">第 0 輪</h2>
+        <div id="roundStatusBadge" class="status-pill"></div>
+    </div>
+
+    <button class="btn-outline" style="border-radius:50%; width:40px; height:40px; padding:0; flex-shrink:0;" onclick="changeViewRound(1)"><i class="fa-solid fa-chevron-right"></i></button>
+</div>
         <div class="action-bar">
             <div class="action-group">
                 <button class="btn-blue" onclick="generateNextRoundWithEffect()" id="genBtn"><i class="fa-solid fa-bolt"></i> 配對新輪</button>
@@ -834,11 +889,37 @@ function performInit(){
 function changeViewRound(delta) { let newRound = viewingRound + delta; if (newRound < 1 || newRound > sysData.currentRound) return; viewingRound = newRound; if(isManualMode) toggleManualMode(); renderPairingList(true); updateButtonsState(); }
 function setRes(wId, r) {
     if (isViewerMode) return;
-    let p = sysData.pairings.find(x => x.round === viewingRound && x.white.number === wId); if (!p) return;
-    p.result = r; updateScores(); saveCurrentGroupData();
-    const cards = document.querySelectorAll('.match-card-ui'); let targetCard = null;
-    cards.forEach((card, idx) => { const pairs = sysData.pairings.filter(x => x.round === viewingRound); pairs.sort((a, b) => { if (a.black.isBye) return 1; if (b.black.isBye) return -1; return 0; }); if (pairs[idx] && pairs[idx].white.number === wId) targetCard = card; });
-    if (targetCard) applyResultFeedback(targetCard, r, p.black.isBye); else renderPairingList(false, wId);
+    
+    // 1. 找對局並更新數據
+    let p = sysData.pairings.find(x => x.round === viewingRound && x.white.number === wId); 
+    if (!p) return;
+    
+    p.result = r; 
+    updateScores(); 
+    saveCurrentGroupData();
+    
+    // 2. 更新上方進度標籤 (放在這裡)
+    updateMatchProgress(); 
+    
+    // 3. 更新卡片 UI (這段原本跑出函式外了，現在把它包回來)
+    const cards = document.querySelectorAll('.match-card-ui'); 
+    let targetCard = null;
+    
+    cards.forEach((card, idx) => { 
+        const pairs = sysData.pairings.filter(x => x.round === viewingRound); 
+        pairs.sort((a, b) => { 
+            if (a.black.isBye) return 1; 
+            if (b.black.isBye) return -1; 
+            return 0; 
+        }); 
+        if (pairs[idx] && pairs[idx].white.number === wId) targetCard = card; 
+    });
+
+    if (targetCard) {
+        applyResultFeedback(targetCard, r, p.black.isBye); 
+    } else {
+        renderPairingList(false, wId);
+    }
 }
 /* 將此函式覆蓋原本的 applyResultFeedback */
 function applyResultFeedback(card, result, isBye) {
@@ -1274,6 +1355,43 @@ function checkThreeColorStreak(player, currentColor) {
     // 4. 檢查：歷史最後兩次實際顏色 === 本次預計顏色
     return (validColorHistory[len-1] === currentColor && validColorHistory[len-2] === currentColor);
 }
+/* --- 新增：更新完賽進度顯示邏輯 --- */
+function updateMatchProgress() {
+    const badge = document.getElementById('roundStatusBadge');
+    
+    // 如果不是比賽進行中，或是還沒有賽程，隱藏標籤
+    if (viewingRound === 0 || sysData.pairings.length === 0) {
+        badge.classList.remove('show');
+        return;
+    }
+
+    // 找出當前檢視輪次的所有對局
+    const currentPairs = sysData.pairings.filter(p => p.round === viewingRound);
+    
+    // 計算未完賽數量 (result 為 null 且非輪空)
+    // 註：Generate 時輪空通常已經被自動設為 result:1 或 result:0，這裡多做檢查較保險
+    const pendingCount = currentPairs.filter(p => p.result === null).length;
+    const totalCount = currentPairs.length;
+
+    if (totalCount === 0) {
+        badge.classList.remove('show');
+        return;
+    }
+
+    // 顯示標籤
+    badge.classList.add('show');
+    badge.classList.remove('pending', 'completed');
+
+    if (pendingCount > 0) {
+        // 還有未完賽
+        badge.classList.add('pending');
+        badge.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> 進行中：剩 ${pendingCount} 組`;
+    } else {
+        // 全數完賽
+        badge.classList.add('completed');
+        badge.innerHTML = `<i class="fa-solid fa-check-circle"></i> 本輪全數完賽`;
+    }
+}
 /* === 修復後的 renderPairingList (解決輪空警告問題) === */
 function renderPairingList(animate = false, highlightNumber = null){
     const listDiv = document.getElementById('pairingList'); const title = document.getElementById('roundTitle');
@@ -1359,8 +1477,12 @@ function renderPairingList(animate = false, highlightNumber = null){
                 </div>
             </div>`;
             
+        // ... (前面省略)
         listDiv.appendChild(card);
     });
+
+    // 這一行必須在函式的括號「裡面」
+    updateMatchProgress(); 
 }
 function toggleManualMode() {
     // --- 新增：大循環禁止調動 ---
