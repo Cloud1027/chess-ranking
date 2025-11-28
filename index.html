@@ -144,15 +144,62 @@ button:active { transform: translateY(0); box-shadow: var(--shadow-sm); filter: 
 /* RR Checkbox Switch */
 input[type=checkbox] { width: 20px; height: 20px; accent-color: #8b5cf6; cursor: pointer; }
 
-/* Visual Feedback */
-.match-card-ui.has-result { position: relative; border-left: 4px solid transparent; transition: border-color 0.2s; }
-.match-card-ui.result-red { border-left-color: #ef4444; } .match-card-ui.result-black { border-left-color: #3b82f6; } .match-card-ui.result-draw { border-left-color: #10b981; } .match-card-ui.result-bye { border-left-color: #9ca3af; }
+/* --- Visual Feedback (新版優化設計) --- */
+
+/* 1. 卡片基礎狀態 */
+.match-card-ui {
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    transition: all 0.2s;
+    /* 預設左邊框是透明的，寬度 6px */
+    border-left: 6px solid transparent; 
+}
+
+/* 2. 結果狀態：只改變左側邊框顏色，不改背景 */
+.match-card-ui.result-red   { border-left-color: #ef4444; background: linear-gradient(to right, #fef2f2 0%, #ffffff 30%); }
+.match-card-ui.result-black { border-left-color: #3b82f6; background: linear-gradient(to right, #eff6ff 0%, #ffffff 30%); }
+.match-card-ui.result-draw  { border-left-color: #10b981; background: linear-gradient(to right, #ecfdf5 0%, #ffffff 30%); }
+.match-card-ui.result-bye   { border-left-color: #9ca3af; background: #f9fafb; }
+
+/* 3. 選手狀態變化 */
+.player-box {
+    transition: all 0.3s ease;
+    opacity: 1;
+    filter: grayscale(0);
+}
+
+/* 勝者：字體變大、加粗、底色微微亮起 */
+.player-box.winner {
+    transform: scale(1.05);
+    background-color: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 5;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+.player-box.winner .player-name {
+    font-weight: 900;
+    font-size: 1.3rem; /* 名字放大 */
+}
+
+/* 敗者：變半透明、輕微灰階，讓視覺自動過濾掉 */
+.player-box.loser {
+    opacity: 0.4;
+    filter: grayscale(0.8);
+    transform: scale(0.95);
+}
+
+/* 剛剛確認成績時的動畫 (維持原樣) */
 .match-card-ui.just-confirmed { animation: confirmPulse 0.4s ease-out; }
-@keyframes confirmPulse { 0% { box-shadow: var(--shadow-sm); } 50% { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1), var(--shadow-md); } 100% { box-shadow: var(--shadow-sm); } }
-.player-box { transition: opacity 0.25s, transform 0.25s; }
-.player-box.winner { transform: scale(1.02); } .player-box.winner .player-name { font-weight: 800; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
-.player-box.loser { opacity: 0.5; transform: scale(0.98); }
-.result-tag { animation: fadeIn 0.15s ease-out; }
+@keyframes confirmPulse { 
+    0% { transform: scale(1); } 
+    50% { transform: scale(1.02); box-shadow: 0 5px 15px rgba(0,0,0,0.1); } 
+    100% { transform: scale(1); } 
+}
 
 /* Loading */
 #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(5px); color: white; }
@@ -793,14 +840,56 @@ function setRes(wId, r) {
     cards.forEach((card, idx) => { const pairs = sysData.pairings.filter(x => x.round === viewingRound); pairs.sort((a, b) => { if (a.black.isBye) return 1; if (b.black.isBye) return -1; return 0; }); if (pairs[idx] && pairs[idx].white.number === wId) targetCard = card; });
     if (targetCard) applyResultFeedback(targetCard, r, p.black.isBye); else renderPairingList(false, wId);
 }
+/* 將此函式覆蓋原本的 applyResultFeedback */
 function applyResultFeedback(card, result, isBye) {
-    const vsArea = card.querySelector('.vs-area'); const playerBoxes = card.querySelectorAll('.player-box'); const whiteNum = parseInt(playerBoxes[0].querySelector('.player-num-badge')?.textContent.replace('#', ''));
-    card.classList.remove('has-result', 'result-red', 'result-black', 'result-draw', 'result-bye', 'just-confirmed'); playerBoxes.forEach(b => b.classList.remove('winner', 'loser'));
-    if (result === null) { if (!isBye && !isManualMode && !isViewerMode) vsArea.innerHTML = `<div class="btn-res-group"><button class="btn-res btn-res-red" onclick="setRes(${whiteNum},1)">紅</button><button class="btn-res btn-res-draw" onclick="setRes(${whiteNum},0.5)">和</button><button class="btn-res btn-res-black" onclick="setRes(${whiteNum},0)">黑</button></div>`; return; }
+    const vsArea = card.querySelector('.vs-area');
+    const playerBoxes = card.querySelectorAll('.player-box');
+    const whiteNum = parseInt(playerBoxes[0].querySelector('.player-num-badge')?.textContent.replace('#', ''));
+    
+    // 1. 重置所有狀態
+    card.classList.remove('has-result', 'result-red', 'result-black', 'result-draw', 'result-bye', 'just-confirmed');
+    playerBoxes.forEach(b => {
+        b.classList.remove('winner', 'loser');
+    });
+
+    // 2. 如果是「重填」或無結果，恢復原狀
+    if (result === null) {
+        if (!isBye && !isManualMode && !isViewerMode) {
+            vsArea.innerHTML = `<div class="btn-res-group"><button class="btn-res btn-res-red" onclick="setRes(${whiteNum},1)">紅</button><button class="btn-res btn-res-draw" onclick="setRes(${whiteNum},0.5)">和</button><button class="btn-res btn-res-black" onclick="setRes(${whiteNum},0)">黑</button></div>`;
+        }
+        return;
+    }
+
+    // 3. 根據結果設定樣式
     let resText = '', tagClass = '', resultClass = '';
-    if (isBye) { resText = '輪空勝'; tagClass = 'tag-draw'; resultClass = 'result-bye'; } else if (result === 1) { resText = '紅勝'; tagClass = 'tag-win'; resultClass = 'result-red'; playerBoxes[0].classList.add('winner'); playerBoxes[1].classList.add('loser'); } else if (result === 0.5) { resText = '和局'; tagClass = 'tag-draw'; resultClass = 'result-draw'; } else { resText = '黑勝'; tagClass = 'tag-loss'; resultClass = 'result-black'; playerBoxes[0].classList.add('loser'); playerBoxes[1].classList.add('winner'); }
-    card.classList.add('has-result', resultClass, 'just-confirmed'); vsArea.innerHTML = `<span class="result-tag ${tagClass}">${resText}</span>${(!isManualMode && !isViewerMode) ? `<small style="color:#999;cursor:pointer;text-decoration:underline;margin-top:5px" onclick="setRes(${whiteNum},null)">重填</small>` : ''}`;
-    setTimeout(() => { card.classList.remove('just-confirmed'); playerBoxes.forEach(b => b.classList.remove('winner', 'loser')); }, 800);
+    
+    if (isBye) {
+        resText = '輪空勝'; tagClass = 'tag-draw'; resultClass = 'result-bye';
+        // 輪空通常視為勝者
+        playerBoxes[0].classList.add('winner'); 
+    } else if (result === 1) {
+        // 紅勝
+        resText = '紅勝'; tagClass = 'tag-win'; resultClass = 'result-red';
+        playerBoxes[0].classList.add('winner');
+        playerBoxes[1].classList.add('loser');
+    } else if (result === 0.5) {
+        // 和局 (兩邊都不變 winner/loser，或者可以選擇都微亮，這裡保持原樣)
+        resText = '和局'; tagClass = 'tag-draw'; resultClass = 'result-draw';
+    } else {
+        // 黑勝
+        resText = '黑勝'; tagClass = 'tag-loss'; resultClass = 'result-black';
+        playerBoxes[0].classList.add('loser');
+        playerBoxes[1].classList.add('winner');
+    }
+
+    // 4. 套用 CSS Class
+    card.classList.add('has-result', resultClass, 'just-confirmed');
+    
+    // 5. 更新中間 VS 區域文字
+    vsArea.innerHTML = `<span class="result-tag ${tagClass}">${resText}</span>${(!isManualMode && !isViewerMode) ? `<small style="color:#999;cursor:pointer;text-decoration:underline;margin-top:5px" onclick="setRes(${whiteNum},null)">重填</small>` : ''}`;
+    
+    // 動畫結束後移除動畫 class (但保留顏色狀態)
+    setTimeout(() => { card.classList.remove('just-confirmed'); }, 800);
 }
 
 function exportJSON() { saveCurrentGroupData(); const dataStr = JSON.stringify(sysData, null, 2); const url = URL.createObjectURL(new Blob([dataStr], { type: "application/json" })); const link = document.createElement('a'); link.href = url; link.download = `${sysData.info.eventName}_備份.json`; link.click(); }
