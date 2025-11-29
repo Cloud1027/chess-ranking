@@ -1181,10 +1181,31 @@ function generateSwissPairing() {
     if (byePlayer) { let byeDummy = sysData.players.find(p => p.isBye) || {number:-1, name:"輪空", isBye:true}; pairings.push({round: sysData.currentRound, white: byePlayer, black: byeDummy, result: 1}); }
     sysData.pairings.push(...pairings);
 }
+// 修改後的分配顏色函式：
+// 1. 優先遵守色差平衡與防三連色
+// 2. 條件相同時：奇數輪號碼小先手、偶數輪號碼大先手
 function assignColors(p1, p2, round) {
-    let s1 = getPlayerColorStatus(p1, round); let s2 = getPlayerColorStatus(p2, round);
-    if (s1 > s2) return {w: p1, b: p2}; if (s2 > s1) return {w: p2, b: p1};
-    return (p1.number < p2.number) ? {w: p1, b: p2} : {w: p2, b: p1};
+    // 取得兩人的顏色需求分數 (正數代表想拿紅/先，負數代表想拿黑/後)
+    let s1 = getPlayerColorStatus(p1, round);
+    let s2 = getPlayerColorStatus(p2, round);
+
+    // --- 第一層：優先順序 (完全保留，不影響核心防呆) ---
+    // 如果 p1 拿紅的需求比 p2 強 (例如 p1 連兩黑，或 p1 色差嚴重偏黑)
+    if (s1 > s2) return {w: p1, b: p2};
+    // 如果 p2 拿紅的需求比 p1 強
+    if (s2 > s1) return {w: p2, b: p1};
+
+    // --- 第二層：當需求相同時 (s1 === s2) 的裁決 ---
+    // 這裡就是您要求的修改：
+    
+    // 判斷是否為奇數輪 (餘數不為 0)
+    if (round % 2 !== 0) {
+        // 奇數輪 (1, 3, 5...)：號碼小者先手 (w: p1)
+        return (p1.number < p2.number) ? {w: p1, b: p2} : {w: p2, b: p1};
+    } else {
+        // 偶數輪 (2, 4, 6...)：號碼大者先手 (w: p1)
+        return (p1.number > p2.number) ? {w: p1, b: p2} : {w: p2, b: p1};
+    }
 }
 
 // 2. B: 大循環配對演算法 (基於貝格爾編排法 - 同餘數總和法)
