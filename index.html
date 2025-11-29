@@ -156,14 +156,6 @@ button:active { transform: translateY(0); box-shadow: var(--shadow-sm); filter: 
 
 /* Tables */
 .table-container { background: white; border-radius: 12px; box-shadow: var(--shadow-md); overflow: hidden; border: 1px solid var(--border); overflow-x: auto; }
-.modern-table th:nth-child(1), .modern-table td:nth-child(1),
-.modern-table th:nth-child(2), .modern-table td:nth-child(2) {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    background-color: inherit; /* 繼承背景色避免透明 */
-    /* 第二欄要加上第一欄的寬度作為 left */
-}
 .modern-table { width: 100%; border-collapse: collapse; min-width: 600px; }
 .modern-table th { background: #f8fafc; color: var(--text-sub); font-weight: 700; padding: 14px 10px; text-align: center; border-bottom: 2px solid var(--border); font-size: 0.85rem; white-space: nowrap; }
 .modern-table td { padding: 12px 10px; border-bottom: 1px solid var(--border); text-align: center; font-size: 0.95rem; color: var(--text-main); white-space: nowrap; }
