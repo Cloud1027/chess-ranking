@@ -181,6 +181,8 @@ button:active { transform: translateY(0); box-shadow: var(--shadow-sm); filter: 
 .compact-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
 .cc-win::before { background: var(--success); } .cc-draw::before { background: var(--warning); } .cc-loss::before { background: var(--danger); } .cc-rnd::before { background: var(--primary); }
 .cc-rr::before { background: #8b5cf6; } /* 紫色 for RR */
+/* 補上這行，讓對手分輪數卡片左邊有藍色線條 */
+.cc-rnd::before { background: var(--primary); }
 .cc-label { font-size: 0.8rem; color: var(--text-sub); font-weight: 700; display: flex; flex-direction: column; }
 .cc-input { width: 60px; text-align: right; font-size: 1.5rem; font-weight: 800; border: none; background: transparent; color: var(--text-main); font-family: var(--font-mono); }
 /* RR Checkbox Switch */
@@ -476,15 +478,22 @@ div:where(.swal2-container) .swal2-html-container { font-family: var(--font-main
             </div>
             <label class="form-label" style="margin-bottom:8px; color:var(--primary);">賽制參數設定</label>
             <div class="compact-grid">
-                <div class="compact-card cc-win"><div class="cc-label"><span><i class="fa-solid fa-trophy" style="color:var(--success)"></i></span>勝局</div><input type="number" id="ptWin" value="2" onchange="saveCurrentGroupData()" class="cc-input"></div>
-                <div class="compact-card cc-draw"><div class="cc-label"><span><i class="fa-solid fa-handshake" style="color:var(--warning)"></i></span>和局</div><input type="number" id="ptDraw" value="1" onchange="saveCurrentGroupData()" class="cc-input"></div>
-                <div class="compact-card cc-loss"><div class="cc-label"><span><i class="fa-solid fa-xmark" style="color:var(--danger)"></i></span>敗局</div><input type="number" id="ptLoss" value="0" onchange="saveCurrentGroupData()" class="cc-input"></div>
-                <!-- 大循環開關 -->
-                <div class="compact-card cc-rr">
-                    <div class="cc-label"><span><i class="fa-solid fa-circle-nodes" style="color:#8b5cf6"></i></span>啟用大循環</div>
-                    <input type="checkbox" id="isRoundRobin" onclick="handleRRClick(this)">
-                </div>
-            </div>
+    <div class="compact-card cc-win"><div class="cc-label"><span><i class="fa-solid fa-trophy" style="color:var(--success)"></i></span>勝局</div><input type="number" id="ptWin" value="2" onchange="saveCurrentGroupData()" class="cc-input"></div>
+    <div class="compact-card cc-draw"><div class="cc-label"><span><i class="fa-solid fa-handshake" style="color:var(--warning)"></i></span>和局</div><input type="number" id="ptDraw" value="1" onchange="saveCurrentGroupData()" class="cc-input"></div>
+    <div class="compact-card cc-loss"><div class="cc-label"><span><i class="fa-solid fa-xmark" style="color:var(--danger)"></i></span>敗局</div><input type="number" id="ptLoss" value="0" onchange="saveCurrentGroupData()" class="cc-input"></div>
+    
+    <!-- 1. 新增：對手分輪數設定 (加上 id 以便控制顯示隱藏) -->
+    <div class="compact-card cc-rnd" id="cardOppScore">
+        <div class="cc-label"><span><i class="fa-solid fa-calculator" style="color:var(--primary)"></i></span>對手分輪</div>
+        <input type="number" id="oppScoreRounds" value="5" onchange="saveCurrentGroupData()" class="cc-input">
+    </div>
+
+    <!-- 2. 大循環開關 (原本的內容) -->
+    <div class="compact-card cc-rr">
+        <div class="cc-label"><span><i class="fa-solid fa-circle-nodes" style="color:#8b5cf6"></i></span>啟用大循環</div>
+        <input type="checkbox" id="isRoundRobin" onclick="handleRRClick(this)">
+    </div>
+</div>
             <div style="margin-top:15px;">
                  <label class="form-label">介面主題色</label>
                  <select id="themeSelect" class="form-input" onchange="updateThemeFromSelect(); saveCurrentGroupData()">
@@ -498,7 +507,7 @@ div:where(.swal2-container) .swal2-html-container { font-family: var(--font-main
                 </select>
             </div>
              <!-- 隱藏設定，大循環時自動忽略但保留欄位 -->
-             <div style="display:none"><input type="number" id="oppScoreRounds" value="5"></div>
+             
         </div>
 
         <div class="input-group">
@@ -838,21 +847,67 @@ function resetSysDataStruct() { sysData = { info: { eventName: "未命名賽事"
 
 function saveCurrentGroupData() {
     if (isViewerMode || !activeGroupId) return;
+
+    // 1. 基本資訊
     sysData.info.eventName = document.getElementById('eventNameInput').value.trim() || "未命名賽事";
     sysData.info.eventAbbr = document.getElementById('eventAbbrInput').value.trim();
     sysData.info.groupName = document.getElementById('groupNameInput').value.trim();
     sysData.info.date = document.getElementById('dateInput').value;
-    sysData.signatures = { ref: document.getElementById('refereeInput').value, dir: document.getElementById('directorInput').value };
-    sysData.pointsConfig = { win: parseFloat(document.getElementById('ptWin').value)||2, draw: parseFloat(document.getElementById('ptDraw').value)||1, loss: parseFloat(document.getElementById('ptLoss').value)||0 };
-    sysData.settings.themeColor = document.getElementById('themeSelect').value;
-    sysData.settings.isRoundRobin = document.getElementById('isRoundRobin').checked; // Save RR setting
-    
-    // Auto-adjust permissions from UI
-    sysData.viewerPermissions = { rankings: document.getElementById('unlockRankings').checked, summary: document.getElementById('unlockSummary').checked };
 
+    // 2. 簽名檔
+    sysData.signatures = {
+        ref: document.getElementById('refereeInput').value,
+        dir: document.getElementById('directorInput').value
+    };
+
+    // 3. 積分設定
+    sysData.pointsConfig = {
+        win: parseFloat(document.getElementById('ptWin').value) || 2,
+        draw: parseFloat(document.getElementById('ptDraw').value) || 1,
+        loss: parseFloat(document.getElementById('ptLoss').value) || 0
+    };
+
+    // 4. [修復] 讀取設定：對手分輪數、主題、大循環
+    // 這裡讀取剛才加回去的 input 值
+    sysData.settings.oppScoreRounds = parseInt(document.getElementById('oppScoreRounds').value) || 5;
+    sysData.settings.themeColor = document.getElementById('themeSelect').value;
+    sysData.settings.isRoundRobin = document.getElementById('isRoundRobin').checked;
+
+    // ★ [新增] 介面連動：如果是大循環，就把對手分輪數卡片隱藏，否則顯示
+    const cardOpp = document.getElementById('cardOppScore');
+    if(cardOpp) {
+        cardOpp.style.display = sysData.settings.isRoundRobin ? 'none' : 'flex';
+    }
+
+    // 5. 權限設定
+    sysData.viewerPermissions = {
+        rankings: document.getElementById('unlockRankings').checked,
+        summary: document.getElementById('unlockSummary').checked
+    };
+
+    // 6. 寫入 LocalStorage
     localStorage.setItem(STORE_PREFIX + activeGroupId, JSON.stringify(sysData));
+
+    // 7. 更新列表索引 (若名稱或顏色有變)
     const gIndex = groups.findIndex(g => g.id === activeGroupId);
-    if (gIndex !== -1) { let changed = false; if (groups[gIndex].name !== sysData.info.eventName) { groups[gIndex].name = sysData.info.eventName; changed = true; } if (groups[gIndex].groupName !== sysData.info.groupName) { groups[gIndex].groupName = sysData.info.groupName; changed = true; } if (groups[gIndex].color !== sysData.settings.themeColor) { groups[gIndex].color = sysData.settings.themeColor; applyTheme(groups[gIndex].color); changed = true; } if (changed) saveGroupsIndex(); }
+    if (gIndex !== -1) {
+        let changed = false;
+        if (groups[gIndex].name !== sysData.info.eventName) {
+            groups[gIndex].name = sysData.info.eventName;
+            changed = true;
+        }
+        if (groups[gIndex].groupName !== sysData.info.groupName) {
+            groups[gIndex].groupName = sysData.info.groupName;
+            changed = true;
+        }
+        if (groups[gIndex].color !== sysData.settings.themeColor) {
+            groups[gIndex].color = sysData.settings.themeColor;
+            applyTheme(groups[gIndex].color);
+            changed = true;
+        }
+        if (changed) saveGroupsIndex();
+    }
+
     updateHeaderDisplay();
     if (currentShareId) syncToCloud();
 }
@@ -897,14 +952,31 @@ function updateUI(){
     document.getElementById('dateInput').value = sysData.info.date || "";
     document.getElementById('refereeInput').value = sysData.signatures?.ref || '';
     document.getElementById('directorInput').value = sysData.signatures?.dir || '';
+    
     document.getElementById('ptWin').value = sysData.pointsConfig.win;
     document.getElementById('ptDraw').value = sysData.pointsConfig.draw;
     document.getElementById('ptLoss').value = sysData.pointsConfig.loss;
+    
+    // [修復] 將數值填回欄位
+    document.getElementById('oppScoreRounds').value = sysData.settings.oppScoreRounds || 5;
+    
     document.getElementById('themeSelect').value = sysData.settings.themeColor || 'blue';
     document.getElementById('isRoundRobin').checked = sysData.settings.isRoundRobin || false;
+    
+    // [修復] 初始化時也要檢查：如果是大循環則隱藏
+    const cardOpp = document.getElementById('cardOppScore');
+    if(cardOpp) {
+        cardOpp.style.display = (sysData.settings.isRoundRobin) ? 'none' : 'flex';
+    }
+
     document.getElementById('unlockRankings').checked = sysData.viewerPermissions?.rankings || false;
     document.getElementById('unlockSummary').checked = sysData.viewerPermissions?.summary || false;
-    if(sysData.players.length>0) document.getElementById('playerInput').value = sysData.players.filter(p=>!p.isBye).map(p=>`${p.number} ${p.name}`).join('\n'); else document.getElementById('playerInput').value = '';
+    
+    if(sysData.players.length>0) 
+        document.getElementById('playerInput').value = sysData.players.filter(p=>!p.isBye).map(p=>`${p.number} ${p.name}`).join('\n'); 
+    else 
+        document.getElementById('playerInput').value = '';
+    
     updateHeaderDisplay();
 }
 
