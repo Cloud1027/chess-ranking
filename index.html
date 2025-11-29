@@ -1480,33 +1480,49 @@ function updateScores(){
     sysData.players.forEach(p=>{ p.points=0; p.opponents=[]; p.colors=[]; p.results=[]; });
 
     sysData.pairings.forEach(p=>{
-        let w=sysData.players.find(x=>x.number===p.white.number);
-        let b=sysData.players.find(x=>x.number===p.black.number);
+        // ★★★ 修正處開始 ★★★
+        // 嘗試在主名單找選手。如果找不到 (因為是中途產生的臨時輪空)，直接使用對陣資料裡的物件
+        // 這樣確保即使對手不在原始名單內 (如臨時輪空)，程式仍能進入下方的計分判斷
+        let w = sysData.players.find(x => x.number === p.white.number) || (p.white.isBye ? p.white : null);
+        let b = sysData.players.find(x => x.number === p.black.number) || (p.black.isBye ? p.black : null);
+        // ★★★ 修正處結束 ★★★
         
         if(w && b){ 
-            w.opponents.push(b.number); b.opponents.push(w.number); 
+            // 只有真實存在的選手才紀錄對手列表 (輪空物件不需要紀錄)
+            if(sysData.players.includes(w)) w.opponents.push(b.number); 
+            if(sysData.players.includes(b)) b.opponents.push(w.number); 
             
-            // ★★★ 修改重點開始：輪空局不計顏色 ★★★
+            // 處理顏色 (輪空不計顏色)
             if (p.black.isBye || p.white.isBye) {
-                w.colors.push('空'); 
-                b.colors.push('空');
+                if(sysData.players.includes(w)) w.colors.push('空'); 
+                if(sysData.players.includes(b)) b.colors.push('空');
             } else {
-                w.colors.push('先'); 
-                b.colors.push('後'); 
+                if(sysData.players.includes(w)) w.colors.push('先'); 
+                if(sysData.players.includes(b)) b.colors.push('後'); 
             }
-            // ★★★ 修改重點結束 ★★★
 
+            // 計算分數與結果字串
             if(p.result === null) {
-                w.results.push(''); b.results.push(''); 
+                if(sysData.players.includes(w)) w.results.push(''); 
+                if(sysData.players.includes(b)) b.results.push(''); 
             } else if(p.black.isBye){ 
-                w.points+=W; w.results.push('勝'); 
+                // 黑方輪空 -> 白方勝
+                if(sysData.players.includes(w)) { w.points+=W; w.results.push('勝'); }
             } else if(p.white.isBye){
-                // 處理白方輪空 (大循環可能發生)
-                b.points+=W; b.results.push('勝');
+                // 白方輪空 -> 黑方勝
+                if(sysData.players.includes(b)) { b.points+=W; b.results.push('勝'); }
             } else { 
-                if(p.result===1){w.points+=W;b.points+=L;w.results.push('勝');b.results.push('負');} 
-                else if(p.result===0.5){w.points+=D;b.points+=D;w.results.push('和');b.results.push('和');} 
-                else{w.points+=L;b.points+=W;w.results.push('負');b.results.push('勝');} 
+                // 正常對局
+                if(p.result===1){
+                    if(sysData.players.includes(w)) { w.points+=W; w.results.push('勝'); }
+                    if(sysData.players.includes(b)) { b.points+=L; b.results.push('負'); }
+                } else if(p.result===0.5){
+                    if(sysData.players.includes(w)) { w.points+=D; w.results.push('和'); }
+                    if(sysData.players.includes(b)) { b.points+=D; b.results.push('和'); }
+                } else{
+                    if(sysData.players.includes(w)) { w.points+=L; w.results.push('負'); }
+                    if(sysData.players.includes(b)) { b.points+=W; b.results.push('勝'); }
+                } 
             } 
         }
     });
@@ -1930,7 +1946,9 @@ function showPlayerHistory(n) {
     let html = '';
     p.opponents.forEach((o, i) => {
         let op = sysData.players.find(x => x.number === o);
-        let opName = op ? (op.isBye ? "輪空" : `<span style="background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:50%;margin-right:5px;font-size:0.8rem;font-weight:bold;min-width:20px;display:inline-block;text-align:center;">${op.number}</span> ${escapeHtml(op.name)} <small>(${op.points}分)</small>`) : "未知";
+        let opName = (op && !op.isBye) 
+        ? `<span style="background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:50%;margin-right:5px;font-size:0.8rem;font-weight:bold;min-width:20px;display:inline-block;text-align:center;">${op.number}</span> ${escapeHtml(op.name)} <small>(${op.points}分)</small>`
+        : "輪空"; 
         let res = p.results[i] || '進行中'; 
         let resClass = res === '勝' ? 'tag-win' : (res === '負' ? 'tag-loss' : (res === '和' ? 'tag-draw' : ''));
         
@@ -2115,6 +2133,7 @@ function performSeedDraw(players) { return { arrangement: shuffleArray(players),
 function shuffleArray(array) { let newArray = [...array]; for (let i = newArray.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [newArray[i], newArray[j]] = [newArray[j], newArray[i]]; } return newArray; }
 // === 修復：網頁版成績總表渲染函式 ===
 // === 網頁版成績總表渲染函式 (修正編號圓圈樣式) ===
+// === 網頁版成績總表渲染函式 (修正排序為依照編號) ===
 function renderSummaryTable() {
     updateScores(); 
     
@@ -2138,15 +2157,11 @@ function renderSummaryTable() {
     }
     h += `</tr></thead><tbody>`;
 
-    // 4. 準備選手資料並排序
+    // 4. 準備選手資料
     let players = sysData.players.filter(p => !p.isBye);
 
-    // 排序：積分 > 對手分 > 號碼
-    players.sort((a, b) => {
-        if (b.points !== a.points) return b.points - a.points;
-        if (b.opponentPoints !== a.opponentPoints) return b.opponentPoints - a.opponentPoints;
-        return a.number - b.number;
-    });
+    // ★★★ 修改這裡：改成依照編號 (由小到大) 排序 ★★★
+    players.sort((a, b) => a.number - b.number);
 
     // 5. 建立內容
     if (players.length === 0) {
@@ -2157,14 +2172,14 @@ function renderSummaryTable() {
         players.forEach(p => {
             let safeName = escapeHtml(p.name);
             
-            // --- [修改重點]：讓姓名變成可點擊的連結 ---
+            // --- 讓姓名變成可點擊的連結 ---
             let clickableNameHtml = `<span class="clickable-name" onclick="showPlayerHistory(${p.number})">${safeName}</span>`;
             
             h += `<tr>
-                <!-- 號碼球樣式保留 -->
+                <!-- 號碼球樣式 -->
                 <td><span class="player-num-badge table-badge">${p.number}</span></td>
                 
-                <!-- 姓名欄位改為 clickableNameHtml -->
+                <!-- 姓名欄位 -->
                 <td style="font-weight:500;">${clickableNameHtml}</td>
                 
                 <td style="font-weight:bold;color:#ef4444">${p.points}</td>
