@@ -944,15 +944,78 @@ function resetSystem(){ Swal.fire({ title: '確定重置本組？', text: "資�
 function initPlayers(){
     if(sysData.pairings.length > 0) Swal.fire({ title: '警告', text: "初始化將清除所有賽程，確定嗎？", icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: '重新開始' }).then((result) => { if(result.isConfirmed) performInit(); }); else performInit();
 }
-function performInit(){
-    const txt = document.getElementById('playerInput').value.trim(); if(!txt) return Swal.fire('請輸入選手名單', '', 'info');
+// [修改] 初始化函數：加入大循環預先產生賽程邏輯
+async function performInit(){
+    const txt = document.getElementById('playerInput').value.trim(); 
+    if(!txt) return Swal.fire('請輸入選手名單', '', 'info');
+    
+    // 儲存設定
     saveCurrentGroupData();
-    const ns = txt.split('\n').map(n=>n.replace(/^\d+[\.\s、]*/, '').trim()).filter(n=>n); if(ns.length<2) return Swal.fire('選手人數不足', '至少需要 2 人', 'error');
+    
+    // 解析名單
+    const ns = txt.split('\n').map(n=>n.replace(/^\d+[\.\s、]*/, '').trim()).filter(n=>n); 
+    if(ns.length<2) return Swal.fire('選手人數不足', '至少需要 2 人', 'error');
+    
+    // 建立選手物件
     sysData.players = ns.map((n,i)=>({id:i+1, number:i+1, name:n, points:0, opponentPoints:0, opponents:[], colors:[], results:[], isBye:false, isWithdrawn:false, rankNote: "" }));
-    // 只有在瑞士制下，奇數才需要補輪空位；大循環時，演算法會自動處理虛擬輪空
-   if(sysData.players.length % 2 !== 0) sysData.players.push({ id:sysData.players.length+1, number:sysData.players.length+1, name:"輪空", points:-1, opponentPoints:0, opponents:[], colors:[], results:[], isBye:true, isWithdrawn:false, rankNote: "" });
-    sysData.currentRound=0; viewingRound=0; sysData.pairings=[];
-    generateNextRound(); showSection('pairing', document.querySelectorAll('.nav-item')[1]); Swal.fire({ icon: 'success', title: '初始化成功', timer: 1500, showConfirmButton: false });
+    
+    // 補足輪空 (瑞士制或大循環都需要偶數方便運算)
+    if(sysData.players.length % 2 !== 0) {
+        sysData.players.push({ id:sysData.players.length+1, number:sysData.players.length+1, name:"輪空", points:-1, opponentPoints:0, opponents:[], colors:[], results:[], isBye:true, isWithdrawn:false, rankNote: "" });
+    }
+    
+    sysData.pairings = [];
+    sysData.currentRound = 0; 
+    viewingRound = 0;
+
+    // === [新增邏輯] 判斷是否為大循環 ===
+    if (sysData.settings.isRoundRobin) {
+        // 詢問單循環或雙循環
+        const inputResult = await Swal.fire({
+            title: '大循環設定',
+            text: '請選擇賽制循環次數',
+            icon: 'question',
+            showDenyButton: true,
+            confirmButtonText: '單循環 (1 Cycle)',
+            denyButtonText: '雙循環 (2 Cycles)',
+            confirmButtonColor: '#3b82f6',
+            denyButtonColor: '#8b5cf6'
+        });
+
+        const isDouble = inputResult.isDenied; // Deny 按鈕代表雙循環
+        
+        // 顯示 Loading
+        document.getElementById('loadingOverlay').style.display = 'flex';
+        document.getElementById('loadingMainText').innerText = "GENERATING SCHEDULE";
+        
+        setTimeout(() => {
+            // 一次產生所有賽程
+            generateAllRoundRobinRounds(isDouble);
+            
+            // 設定當前檢視為第 1 輪，但系統狀態為「已產生至最後一輪」
+            viewingRound = 1;
+            
+            saveCurrentGroupData();
+            updateUI();
+            showSection('pairing', document.querySelectorAll('.nav-item')[1]);
+            renderPairingList(true);
+            updateButtonsState(); // 這會隱藏「配對新輪」按鈕，因為已經全部產生了
+            
+            document.getElementById('loadingOverlay').style.display = 'none';
+            Swal.fire({ 
+                icon: 'success', 
+                title: isDouble ? '雙循環賽程已建立' : '單循環賽程已建立', 
+                text: '您可以透過上方左右箭頭切換輪次，隨時輸入任何場次的成績。',
+                timer: 2500 
+            });
+        }, 500);
+
+    } else {
+        // === 原本的瑞士制邏輯 ===
+        generateNextRound(); 
+        showSection('pairing', document.querySelectorAll('.nav-item')[1]); 
+        Swal.fire({ icon: 'success', title: '初始化成功', timer: 1500, showConfirmButton: false });
+    }
 }
 
 function changeViewRound(delta) { let newRound = viewingRound + delta; if (newRound < 1 || newRound > sysData.currentRound) return; viewingRound = newRound; if(isManualMode) toggleManualMode(); renderPairingList(true); updateButtonsState(); }
@@ -1209,63 +1272,64 @@ function assignColors(p1, p2, round) {
 }
 
 // 2. B: 大循環配對演算法 (基於貝格爾編排法 - 同餘數總和法)
-function generateRoundRobinPairing() {
-    // 1. 準備選手並排序
-    let allPlayers = [...sysData.players].sort((a, b) => a.number - b.number);
-    let N = allPlayers.length; // 總人數 (含輪空，必定為偶數)
-    let M = N - 1;             // 基數 (Modulus)，也是單循環總輪數
-    let currentRound = sysData.currentRound;
+// [新增] 一次產生所有大循環輪次
+function generateAllRoundRobinRounds(isDouble) {
+    let N = sysData.players.length; // 含輪空的人數 (必為偶數)
+    let singleCycleRounds = N - 1;  // 單循環輪數
+    let totalRounds = isDouble ? (singleCycleRounds * 2) : singleCycleRounds;
+
+    // 迴圈產生每一輪
+    for (let r = 1; r <= totalRounds; r++) {
+        generateRoundRobinPairingForRound(r, singleCycleRounds);
+    }
     
-    // 判斷是否為第二循環 (雙循環)
+    // 設定系統當前輪次為最後一輪 (讓使用者可以切換 viewingRound 到任意輪)
+    sysData.currentRound = totalRounds;
+}
+
+// [修改] 針對「特定輪次」產生大循環配對 (貝格爾編排法)
+function generateRoundRobinPairingForRound(roundNum, singleCycleRounds) {
+    let allPlayers = [...sysData.players].sort((a, b) => a.number - b.number);
+    let N = allPlayers.length;
+    let M = N - 1; // 基數
+    
+    // 判斷是否為第二循環 (用於換先)
     let isSecondCycle = false;
-    let effectiveRound = currentRound;
-    if (currentRound > M) {
+    let effectiveRound = roundNum;
+    
+    if (roundNum > singleCycleRounds) {
         isSecondCycle = true;
-        effectiveRound = currentRound - M;
-        // 處理多循環狀況 (取餘數)
-        if (effectiveRound > M) effectiveRound = (effectiveRound - 1) % M + 1;
+        effectiveRound = roundNum - singleCycleRounds;
     }
 
     let pairings = [];
-    let pairedSet = new Set(); // 用來記錄這一輪已經配對過的號碼
+    let pairedSet = new Set();
+    let targetSum = effectiveRound + 1; // 同餘數總和法的目標和
 
-    // === 核心演算法：同餘數總和法 (Magic Sum Method) ===
-    // 公式：對手號碼相加總和 (Mod M) = 輪次 + 1
-    
-    let targetSum = effectiveRound + 1; // 這一輪的目標和 (Magic Sum)
-
-    // 遍歷 1 到 M (非固定選手)
+    // 遍歷 1 到 M
     for (let i = 1; i <= M; i++) {
-        if (pairedSet.has(i)) continue; // 如果這個號碼已經配對過，跳過
+        if (pairedSet.has(i)) continue;
 
-        // 計算對手 j
-        // 數學推導： i + j ≡ targetSum (mod M)
-        // 所以 j = targetSum - i
         let j = targetSum - i;
-        
-        // 同餘數調整 (Normalize)：確保 j 在 1~M 之間
         while (j <= 0) j += M;
         while (j > M) j -= M;
 
-        // 取得選手物件 (陣列是 0-indexed，號碼是 1-indexed)
-        let playerA = allPlayers[i - 1];
-        
+        let playerA = allPlayers[i - 1]; // 號碼 i 的選手
+
         if (i === j) {
-            // 當計算出的對手是自己時 ( 2*i ≡ targetSum )
-            // 代表這位選手對上「固定選手」(最大號 N)
+            // 對上固定選手 (最大號 N)
             let fixedPlayer = allPlayers[N - 1];
-            pairings.push(finalizeMagicSumPair(playerA, fixedPlayer, currentRound, isSecondCycle, N));
+            pairings.push(finalizeMagicSumPair(playerA, fixedPlayer, roundNum, isSecondCycle, N));
             pairedSet.add(i);
-            // N 號不用加入 Set，因為迴圈只跑 1~M
         } else {
-            // 一般配對：i 對上 j
+            // 一般配對
             let playerB = allPlayers[j - 1];
-            pairings.push(finalizeMagicSumPair(playerA, playerB, currentRound, isSecondCycle, N));
+            pairings.push(finalizeMagicSumPair(playerA, playerB, roundNum, isSecondCycle, N));
             pairedSet.add(i);
             pairedSet.add(j);
         }
     }
-
+    
     sysData.pairings.push(...pairings);
 }
 
@@ -1482,31 +1546,53 @@ function updateMatchProgress() {
     }
 }
 function renderPairingList(animate = false, highlightNumber = null){
-    const listDiv = document.getElementById('pairingList'); const title = document.getElementById('roundTitle');
-    if(viewingRound === 0) { title.innerText = "準備中"; listDiv.innerHTML = '<div style="text-align:center;width:100%;padding:40px;color:#9ca3af;grid-column:1/-1">請點擊「初始化首輪配對」開始比賽</div>'; return; }
-    let isCurrent = (viewingRound === sysData.currentRound);
-    title.innerText = `第 ${viewingRound} 輪` + (isCurrent ? "" : " (歷史)");
+    const listDiv = document.getElementById('pairingList'); 
+    const title = document.getElementById('roundTitle');
     
+    // 0. 特殊狀態：尚未初始化
+    if(viewingRound === 0) { 
+        title.innerText = "準備中"; 
+        listDiv.innerHTML = '<div style="text-align:center;width:100%;padding:40px;color:#9ca3af;grid-column:1/-1">請點擊「初始化首輪配對」開始比賽</div>'; 
+        return; 
+    }
+
+    // === [修改重點] 標題顯示邏輯 ===
+    // 判斷是否為大循環
+    const isRR = sysData.settings && sysData.settings.isRoundRobin;
+    // 判斷是否為瑞士制的「非最新一輪」
+    const isSwissHistory = !isRR && (viewingRound !== sysData.currentRound);
+    
+    // 只有在「瑞士制」且「查看舊輪次」時，才顯示 (歷史)
+    title.innerText = `第 ${viewingRound} 輪` + (isSwissHistory ? " (歷史)" : "");
+    // =================================
+    
+    // 取得當前檢視輪次的對陣
     let pairs = sysData.pairings.filter(p=>p.round === viewingRound);
-    // 排序邏輯必須與 toggleManualMode 裡的快照排序一致
-    pairs.sort((a,b) => { if(a.black.isBye) return 1; if(b.black.isBye) return -1; return 0; });
+    
+    // 排序邏輯：將輪空 (Bye) 的場次排在最後面，確保版面整齊
+    pairs.sort((a,b) => { 
+        if(a.black.isBye) return 1; 
+        if(b.black.isBye) return -1; 
+        return 0; 
+    });
     
     listDiv.innerHTML = '';
     
     pairs.forEach((p, idx) => {
+        // 計算該輪之前的積分 (用於顯示在卡片上)
         let wPts = p.white.isBye ? '-' : calcScoreBeforeRound(p.white.number, viewingRound);
         let bPts = p.black.isBye ? '-' : calcScoreBeforeRound(p.black.number, viewingRound);
         
-        // 1. 檢查重複對戰
+        // 1. 檢查重複對戰 (僅瑞士制需要警告，大循環是正常的)
         let isRematch = false;
-        if(!sysData.settings.isRoundRobin && !p.black.isBye && !p.white.isBye && sysData.pairings.some(past => past.round < viewingRound && ((past.white.number===p.white.number && past.black.number===p.black.number) || (past.white.number===p.black.number && past.black.number===p.white.number)))) { 
+        if(!isRR && !p.black.isBye && !p.white.isBye && sysData.pairings.some(past => past.round < viewingRound && ((past.white.number===p.white.number && past.black.number===p.black.number) || (past.white.number===p.black.number && past.black.number===p.white.number)))) { 
             isRematch = true; 
         }
 
-        // 2. 檢查重複輪空
+        // 2. 檢查重複輪空 (僅瑞士制需要警告)
         let isRepeatBye = false;
         let isByeGame = p.black.isBye || p.white.isBye;
-        if (!sysData.settings.isRoundRobin && isByeGame) {
+        if (!isRR && isByeGame) {
             let realPlayer = p.black.isBye ? p.white : p.black;
             if (realPlayer && !realPlayer.isBye) {
                 isRepeatBye = sysData.pairings.some(past => 
@@ -1517,31 +1603,24 @@ function renderPairingList(animate = false, highlightNumber = null){
             }
         }
         
-        // 3. 檢查三連色
+        // 3. 檢查三連色 (瑞士制警告)
         let redWarn = (!isByeGame && checkThreeColorStreak(p.white, '先')) ? '<div class="player-warn-badge">連三先</div>' : '';
         let blackWarn = (!isByeGame && checkThreeColorStreak(p.black, '後')) ? '<div class="player-warn-badge">連三後</div>' : '';
 
-        // === [新增]：檢查調動狀態 ===
+        // 4. 檢查調動狀態 (Manual Mode)
         let modifiedW = '';
         let modifiedB = '';
-        
         // 只有在調動模式，且快照存在時才檢查
         if (isManualMode && originalPairingsSnapshot && originalPairingsSnapshot[idx]) {
             let original = originalPairingsSnapshot[idx];
-            
-            // 比對紅方 (white) 是否換人
-            if (p.white.number !== original.white.number) {
-                modifiedW = 'modified-slot';
-            }
-            // 比對黑方 (black) 是否換人
-            if (p.black.number !== original.black.number) {
-                modifiedB = 'modified-slot';
-            }
+            if (p.white.number !== original.white.number) modifiedW = 'modified-slot';
+            if (p.black.number !== original.black.number) modifiedB = 'modified-slot';
         }
-        // ============================
 
+        // 建立卡片 DOM
         const card = document.createElement('div'); card.className = 'match-card-ui';
         
+        // 設定結果樣式 Class
         if (p.result !== null) { 
             card.classList.add('has-result'); 
             if (isByeGame) { card.classList.add('result-bye'); } 
@@ -1550,11 +1629,15 @@ function renderPairingList(animate = false, highlightNumber = null){
             else { card.classList.add('result-black'); } 
         }
         
+        // 設定警告邊框
         if(isRematch || isRepeatBye) card.style.border = "2px solid #ef4444";
         
+        // 動畫效果
         if (animate) { card.style.animation = `fadeIn 0.5s ease-out forwards`; card.style.opacity = 0; card.style.animationDelay = `${idx * 0.05}s`; }
+        // 搜尋高亮
         if (highlightNumber !== null && (p.white.number === highlightNumber || p.black.number === highlightNumber)) card.style.boxShadow = "0 0 0 3px var(--primary)";
         
+        // 中間區域 HTML (按鈕或結果)
         let centerHTML = '';
         if(p.result === null) {
             if(!isByeGame && !isManualMode && !isViewerMode) { 
@@ -1571,11 +1654,13 @@ function renderPairingList(animate = false, highlightNumber = null){
             centerHTML = `<div class="vs-area"><span class="result-tag ${tagC}">${resT}</span>` + ((!isManualMode && !isViewerMode) ? `<small style="color:#999;cursor:pointer;text-decoration:underline;margin-top:5px" onclick="setRes(${p.white.number},null)">重填</small>`:'') + `</div>`;
         }
 
+        // 調動模式點擊事件
         let wClick = isManualMode ? `onclick="handleManualSelect(${idx}, true)"` : ''; 
         let bClick = isManualMode ? `onclick="handleManualSelect(${idx}, false)"` : '';
         let selW = (swapSource && swapSource.pairingIdx===idx && swapSource.isWhite) ? 'selected' : ''; 
         let selB = (swapSource && swapSource.pairingIdx===idx && !swapSource.isWhite) ? 'selected' : '';
         
+        // 警告標籤
         let warningBadge = '';
         if (isRematch) {
             warningBadge = `<div class="global-warning"><span class="badge-rematch"><i class="fa-solid fa-triangle-exclamation"></i> 重複對戰</span></div>`;
@@ -1583,11 +1668,11 @@ function renderPairingList(animate = false, highlightNumber = null){
             warningBadge = `<div class="global-warning"><span class="badge-rematch" style="background:#ea580c"><i class="fa-solid fa-ban"></i> 重複輪空</span></div>`;
         }
 
+        // 組合卡片 HTML
         card.innerHTML = `
             ${warningBadge}
             <div class="match-header"><div class="table-num-box">第 ${idx+1} 桌</div><span class="round-label">ROUND ${viewingRound}</span></div>
             <div class="match-content">
-                <!-- 加上 modifiedW 變數 -->
                 <div class="player-box ${selW} ${modifiedW}" ${wClick}>
                     ${redWarn}
                     ${p.white.isBye?'':`<span class="player-num-badge">${p.white.number}</span>`}
@@ -1595,7 +1680,6 @@ function renderPairingList(animate = false, highlightNumber = null){
                     <span class="player-score">${wPts}分</span>
                 </div>
                 ${centerHTML}
-                <!-- 加上 modifiedB 變數 -->
                 <div class="player-box ${selB} ${modifiedB}" ${bClick}>
                     ${blackWarn}
                     ${p.black.isBye ? '' : `<span class="player-num-badge">${p.black.number}</span>`}
@@ -1607,6 +1691,7 @@ function renderPairingList(animate = false, highlightNumber = null){
         listDiv.appendChild(card);
     });
 
+    // 更新上方的進度條 (例如：進行中：剩 3 組)
     updateMatchProgress(); 
 }
 function toggleManualMode() {
@@ -1680,7 +1765,26 @@ function handleManualSelect(pIdx, isWhite) {
     if(pSrc.black.isBye || pSrc.white.isBye) { pSrc.result = 1; } else { pSrc.result = null; } if(pTgt.black.isBye || pTgt.white.isBye) { pTgt.result = 1; } else { pTgt.result = null; }
     saveCurrentGroupData(); swapSource=null; document.getElementById('swapIndicator').innerText = "交換成功！"; renderPairingList(false);
 }
-function updateButtonsState(){ const isLatest = (viewingRound === sysData.currentRound); document.getElementById('genBtn').style.display = isLatest ? 'inline-block' : 'none'; document.getElementById('manualModeBtn').style.display = isLatest ? 'inline-block' : 'none'; document.getElementById('undoBtn').style.display = (isLatest && sysData.currentRound>0) ? 'inline-block' : 'none'; }
+// [修改] 更新按鈕狀態：大循環模式下，若賽程已生成則隱藏「配對新輪」
+function updateButtonsState(){ 
+    const isLatest = (viewingRound === sysData.currentRound); 
+    const isRR = sysData.settings.isRoundRobin;
+    
+    // 如果是瑞士制：只有在最新一輪才顯示配對按鈕
+    // 如果是大循環：隱藏配對按鈕 (因為一次生成完了)，或者如果想保留手動加輪功能，可依需求調整
+    // 這裡建議：如果是大循環且 currentRound > 0，就隱藏配對按鈕，避免誤按
+    
+    if (isRR && sysData.currentRound > 0) {
+        document.getElementById('genBtn').style.display = 'none';
+        document.getElementById('undoBtn').style.display = 'none'; // 大循環通常不刪除輪次
+    } else {
+        document.getElementById('genBtn').style.display = isLatest ? 'inline-block' : 'none'; 
+        document.getElementById('undoBtn').style.display = (isLatest && sysData.currentRound>0) ? 'inline-block' : 'none';
+    }
+    
+    // 調動按鈕：大循環通常禁止調動，瑞士制才顯示
+    document.getElementById('manualModeBtn').style.display = (isLatest && !isRR) ? 'inline-block' : 'none'; 
+}
 function getH2HWinner(p1, p2) { let idx = p1.opponents.indexOf(p2.number); if (idx === -1) return 0; return p1.results[idx] === '勝' ? -1 : (p1.results[idx] === '負' ? 1 : 0); }
 function updatePlayerNote(num, val) { let p = sysData.players.find(x => x.number === num); if (p) { p.rankNote = val; saveCurrentGroupData(); } }
 function updateRankings(){
