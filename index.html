@@ -2234,7 +2234,7 @@ function getPairingListHTML(mode) {
             line-height: 1;
         }
 
-        .name-cell { font-weight: 900; letter-spacing: 1px; }
+        .name-cell { font-weight: 500; letter-spacing: 0px; font-size: 1.2em; line-height: 0.85; }
         .score-red { color: #dc2626 !important; -webkit-print-color-adjust: exact; font-family: 'Roboto Mono', monospace; }
         .win-res { color: #dc2626 !important; font-weight: 500; font-size: 0.6em; }
         .loss-res { color: #2563eb !important; font-weight: 500; font-size: 0.6em; }
@@ -2294,10 +2294,10 @@ function getRankingsHTML() {
         .print-header h1{font-size:26pt;color:#111;margin:0;font-weight:900;}
         .print-report-table{width:100%;border-collapse:collapse;border:3px solid #333;flex-grow:1;table-layout:fixed;}
         .print-report-table th{background-color:${theme.head}!important;color:white!important;text-align:center;font-size:16pt;font-weight:900;border:1px solid #000;height:30px;-webkit-print-color-adjust:exact;}
-        .print-report-table td{height:${Math.max(7, Math.min(25, rowH))}mm;font-size:${Math.max(10, Math.min(20, rowH*2))}pt;text-align:center;color:#000;border:1px solid #000;font-weight:900;white-space:nowrap;overflow:hidden;padding:0;line-height:0.95;}
+        .print-report-table td{height:${Math.max(7, Math.min(25, rowH))}mm;font-size:${Math.max(12, Math.min(32, rowH*3.3))}pt;text-align:center;color:#000;border:1px solid #000;font-weight:900;white-space:nowrap;overflow:hidden;padding:0;line-height:0.95;}
         .print-report-table tr:nth-child(even) td{background-color:${theme.row}!important;-webkit-print-color-adjust:exact;}
         .export-red-text{color:#dc2626!important;font-weight:900!important;-webkit-print-color-adjust:exact;}
-        .name-cell{text-align:left;padding-left:5px!important;font-weight:normal!important;}
+        .name-cell{text-align:left;padding-left:5px!important;font-weight:normal!important;font-size: 1.15em;}
         .rank-medal{font-size:1.3em;margin-right:2px;}
         .rank-num{font-size:1.1em;font-weight:900;color:#000;font-family:'Roboto Mono',monospace;}
         .num-plain{color:#444;font-weight:700;font-size:0.9em;font-family:'Roboto Mono',monospace;}
