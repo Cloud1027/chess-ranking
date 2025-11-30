@@ -2077,8 +2077,16 @@ function getPairingListHTML(mode) {
     
     const theme = getThemeColorObj(); 
     const abbr = sysData.info.eventAbbr || sysData.info.eventName; 
+    
+    // --- 修改開始：加入組別判斷 ---
+    const grp = sysData.info.groupName ? (" " + sysData.info.groupName) : "";
+    // --- 修改結束 ---
+
     const typeText = mode === 'pre' ? '對陣表' : '成績表'; 
-    const fullTitle = `${abbr} 第 ${viewingRound} 輪 ${typeText}`;
+    
+    // --- 修改開始：將 grp 加入標題 ---
+    const fullTitle = `${abbr}${grp} 第 ${viewingRound} 輪 ${typeText}`;
+    // --- 修改結束 ---
     
     // 1. 計算列高 (單位 mm)
     let rawRowHeight = 275 / (pairs.length + 1.2);
@@ -2111,7 +2119,6 @@ function getPairingListHTML(mode) {
         }
         .print-table tr:nth-child(even) td { background-color: ${theme.row} !important; -webkit-print-color-adjust: exact; }
         
-        /* ★★★ 改名為 .print-table-badge 避免影響主畫面 ★★★ */
         .print-table-badge {
             display: inline-flex;
             justify-content: center;
@@ -2151,13 +2158,11 @@ function getPairingListHTML(mode) {
         let wPts = p.white.isBye ? '-' : calcScoreBeforeRound(p.white.number, mode === 'pre' ? viewingRound : viewingRound + 1);
         let bPts = p.black.isBye ? '-' : calcScoreBeforeRound(p.black.number, mode === 'pre' ? viewingRound : viewingRound + 1);
         
-        // ★★★ 下面這行的 class 改為 print-table-badge ★★★
         h += `<tr><td><div class="print-table-badge">${i + 1}</div></td><td>${p.white.isBye?'':p.white.number}</td><td class="name-cell">${escapeHtml(p.white.name)}</td><td class="score-red">${wPts}</td><td class="${resClass}">${res}</td><td class="score-red">${bPts}</td><td>${p.black.isBye?'':p.black.number}</td><td class="name-cell">${escapeHtml(p.black.name)}</td></tr>`;
     });
     
     h += `</tbody></table></div>`; return h;
 }
-
 function getRankingsHTML() {
     updateRankings();
     let s = [...sysData.players].filter(p => !p.isBye).sort((a,b)=> { if(b.points !== a.points) return b.points - a.points; if(b.opponentPoints !== a.opponentPoints) return b.opponentPoints - a.opponentPoints; let h2h = getH2HWinner(a, b); if(h2h !== 0) return h2h; if(b.wins !== a.wins) return b.wins - a.wins; return b.sSOS - a.sSOS; });
