@@ -150,7 +150,7 @@ button:active { transform: translateY(0); box-shadow: var(--shadow-sm); filter: 
 .vs-area { width: 100px; display: flex; flex-direction: column; align-items: center; gap: 5px; flex-shrink: 0; }
 .btn-res-group { display: flex; width: 100%; border-radius: 8px; overflow: hidden; box-shadow: var(--shadow-sm); }
 .btn-res { flex: 1; padding: 8px 0; border: none; cursor: pointer; color: white; font-size: 1rem; transition: opacity 0.2s; display: flex; align-items: center; justify-content: center; }
-.btn-res:hover { opacity: 0.9; } .btn-res-red { background: #ef4444; } .btn-res-draw { background: #10b981; } .btn-res-black { background: #3b82f6; }
+.btn-res:hover { opacity: 0.9; } .btn-res-red { background: #c2410c; } .btn-res-draw { background: #10b981; } .btn-res-black { background: #3b82f6; }
 .result-tag { font-weight: 700; padding: 6px 16px; border-radius: 20px; font-size: 0.9rem; }
 .tag-win { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; } .tag-loss { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; } .tag-draw { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
 
@@ -1834,6 +1834,7 @@ function getEmptyStateHTML(type, title, desc) {
         <div class="empty-desc">${desc}</div>
     </div>`;
 }
+/* --- 修正後的配對列表渲染函式 (修復 UX 風格遺失問題) --- */
 function renderPairingList(animate = false, highlightNumber = null){
     const listDiv = document.getElementById('pairingList'); 
     const title = document.getElementById('roundTitle');
@@ -1849,20 +1850,13 @@ function renderPairingList(animate = false, highlightNumber = null){
         return; 
     }
 
-    // === [修改重點] 標題顯示邏輯 ===
-    // 判斷是否為大循環
+    // 標題顯示邏輯
     const isRR = sysData.settings && sysData.settings.isRoundRobin;
-    // 判斷是否為瑞士制的「非最新一輪」
     const isSwissHistory = !isRR && (viewingRound !== sysData.currentRound);
-    
-    // 只有在「瑞士制」且「查看舊輪次」時，才顯示 (歷史)
     title.innerText = `第 ${viewingRound} 輪` + (isSwissHistory ? " (歷史)" : "");
-    // =================================
     
-    // 取得當前檢視輪次的對陣
+    // 取得當前檢視輪次的對陣並排序
     let pairs = sysData.pairings.filter(p=>p.round === viewingRound);
-    
-    // 排序邏輯：將輪空 (Bye) 的場次排在最後面，確保版面整齊
     pairs.sort((a,b) => { 
         if(a.black.isBye) return 1; 
         if(b.black.isBye) return -1; 
@@ -1872,48 +1866,57 @@ function renderPairingList(animate = false, highlightNumber = null){
     listDiv.innerHTML = '';
     
     pairs.forEach((p, idx) => {
-        // 計算該輪之前的積分 (用於顯示在卡片上)
         let wPts = p.white.isBye ? '-' : calcScoreBeforeRound(p.white.number, viewingRound);
         let bPts = p.black.isBye ? '-' : calcScoreBeforeRound(p.black.number, viewingRound);
         
-        // 1. 檢查重複對戰 (僅瑞士制需要警告，大循環是正常的)
+        // 檢查重複對戰與輪空
         let isRematch = false;
-        if(!isRR && !p.black.isBye && !p.white.isBye && sysData.pairings.some(past => past.round < viewingRound && ((past.white.number===p.white.number && past.black.number===p.black.number) || (past.white.number===p.black.number && past.black.number===p.white.number)))) { 
-            isRematch = true; 
-        }
-
-        // 2. 檢查重複輪空 (僅瑞士制需要警告)
+        if(!isRR && !p.black.isBye && !p.white.isBye && sysData.pairings.some(past => past.round < viewingRound && ((past.white.number===p.white.number && past.black.number===p.black.number) || (past.white.number===p.black.number && past.black.number===p.white.number)))) { isRematch = true; }
         let isRepeatBye = false;
         let isByeGame = p.black.isBye || p.white.isBye;
         if (!isRR && isByeGame) {
             let realPlayer = p.black.isBye ? p.white : p.black;
             if (realPlayer && !realPlayer.isBye) {
-                isRepeatBye = sysData.pairings.some(past => 
-                    past.round < viewingRound && 
-                    (past.white.number === realPlayer.number || past.black.number === realPlayer.number) &&
-                    (past.white.isBye || past.black.isBye)
-                );
+                isRepeatBye = sysData.pairings.some(past => past.round < viewingRound && (past.white.number === realPlayer.number || past.black.number === realPlayer.number) && (past.white.isBye || past.black.isBye));
             }
         }
         
-        // 3. 檢查三連色 (瑞士制警告)
+        // 三連色警告
         let redWarn = (!isByeGame && checkThreeColorStreak(p.white, '先')) ? '<div class="player-warn-badge">連三先</div>' : '';
         let blackWarn = (!isByeGame && checkThreeColorStreak(p.black, '後')) ? '<div class="player-warn-badge">連三後</div>' : '';
 
-        // 4. 檢查調動狀態 (Manual Mode)
-        let modifiedW = '';
-        let modifiedB = '';
-        // 只有在調動模式，且快照存在時才檢查
+        // 調動模式標記
+        let modifiedW = ''; let modifiedB = '';
         if (isManualMode && originalPairingsSnapshot && originalPairingsSnapshot[idx]) {
             let original = originalPairingsSnapshot[idx];
             if (p.white.number !== original.white.number) modifiedW = 'modified-slot';
             if (p.black.number !== original.black.number) modifiedB = 'modified-slot';
         }
 
-        // 建立卡片 DOM
+        // ★★★ 關鍵修正：預先計算勝敗狀態樣式 ★★★
+        let wStatusClass = '';
+        let bStatusClass = '';
+
+        if (p.result !== null) {
+            if (isByeGame) {
+                // 輪空通常視為該選手獲勝
+                if(p.black.isBye) wStatusClass = 'winner'; 
+                else bStatusClass = 'winner';
+            } else if (p.result === 1) {
+                // 紅勝
+                wStatusClass = 'winner';
+                bStatusClass = 'loser';
+            } else if (p.result === 0) {
+                // 黑勝
+                wStatusClass = 'loser';
+                bStatusClass = 'winner';
+            }
+            // 和局 (0.5) 則兩邊都不加 winner/loser
+        }
+        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+
+        // 建立卡片
         const card = document.createElement('div'); card.className = 'match-card-ui';
-        
-        // 設定結果樣式 Class
         if (p.result !== null) { 
             card.classList.add('has-result'); 
             if (isByeGame) { card.classList.add('result-bye'); } 
@@ -1921,16 +1924,10 @@ function renderPairingList(animate = false, highlightNumber = null){
             else if (p.result === 0.5) { card.classList.add('result-draw'); } 
             else { card.classList.add('result-black'); } 
         }
-        
-        // 設定警告邊框
         if(isRematch || isRepeatBye) card.style.border = "2px solid #ef4444";
-        
-        // 動畫效果
         if (animate) { card.style.animation = `fadeIn 0.5s ease-out forwards`; card.style.opacity = 0; card.style.animationDelay = `${idx * 0.05}s`; }
-        // 搜尋高亮
         if (highlightNumber !== null && (p.white.number === highlightNumber || p.black.number === highlightNumber)) card.style.boxShadow = "0 0 0 3px var(--primary)";
         
-        // 中間區域 HTML (按鈕或結果)
         let centerHTML = '';
         if(p.result === null) {
             if(!isByeGame && !isManualMode && !isViewerMode) { 
@@ -1944,36 +1941,31 @@ function renderPairingList(animate = false, highlightNumber = null){
             else if(p.result===1) { resT="紅勝"; tagC="tag-win"; }
             else if(p.result===0.5) { resT="和局"; tagC="tag-draw"; }
             else { resT="黑勝"; tagC="tag-loss"; }
-            centerHTML = `<div class="vs-area"><span class="result-tag ${tagC}">${resT}</span>` + ((!isManualMode && !isViewerMode) ? `<small style="color:#999;cursor:pointer;text-decoration:underline;margin-top:5px" onclick="setRes(${p.white.number},null)">重填</small>`:'') + `</div>`;
+            centerHTML = `<div class="vs-area"><span class="result-tag ${tagC}">${resT}</span>` + ((!isManualMode && !isViewerMode) ? `<small style="color:#999;cursor:pointer;text-decoration:underline;margin-top:5px" onclick="setRes(${p.white.number},null)">重填</small>` : '') + `</div>`;
         }
 
-        // 調動模式點擊事件
         let wClick = isManualMode ? `onclick="handleManualSelect(${idx}, true)"` : ''; 
         let bClick = isManualMode ? `onclick="handleManualSelect(${idx}, false)"` : '';
         let selW = (swapSource && swapSource.pairingIdx===idx && swapSource.isWhite) ? 'selected' : ''; 
         let selB = (swapSource && swapSource.pairingIdx===idx && !swapSource.isWhite) ? 'selected' : '';
         
-        // 警告標籤
         let warningBadge = '';
-        if (isRematch) {
-            warningBadge = `<div class="global-warning"><span class="badge-rematch"><i class="fa-solid fa-triangle-exclamation"></i> 重複對戰</span></div>`;
-        } else if (isRepeatBye) {
-            warningBadge = `<div class="global-warning"><span class="badge-rematch" style="background:#ea580c"><i class="fa-solid fa-ban"></i> 重複輪空</span></div>`;
-        }
+        if (isRematch) { warningBadge = `<div class="global-warning"><span class="badge-rematch"><i class="fa-solid fa-triangle-exclamation"></i> 重複對戰</span></div>`; } 
+        else if (isRepeatBye) { warningBadge = `<div class="global-warning"><span class="badge-rematch" style="background:#ea580c"><i class="fa-solid fa-ban"></i> 重複輪空</span></div>`; }
 
-        // 組合卡片 HTML
+        // 組合卡片 HTML (加入 wStatusClass 與 bStatusClass)
         card.innerHTML = `
             ${warningBadge}
             <div class="match-header"><div class="table-num-box">第 ${idx+1} 桌</div><span class="round-label">ROUND ${viewingRound}</span></div>
             <div class="match-content">
-                <div class="player-box ${selW} ${modifiedW}" ${wClick}>
+                <div class="player-box ${selW} ${modifiedW} ${wStatusClass}" ${wClick}>
                     ${redWarn}
                     ${p.white.isBye?'':`<span class="player-num-badge">${p.white.number}</span>`}
-                    <span class="player-name" style="color:#ef4444">${p.white.isBye?'輪空':escapeHtml(p.white.name)}</span>
+                    <span class="player-name" style="color:#f97316">${p.white.isBye?'輪空':escapeHtml(p.white.name)}</span>
                     <span class="player-score">${wPts}分</span>
                 </div>
                 ${centerHTML}
-                <div class="player-box ${selB} ${modifiedB}" ${bClick}>
+                <div class="player-box ${selB} ${modifiedB} ${bStatusClass}" ${bClick}>
                     ${blackWarn}
                     ${p.black.isBye ? '' : `<span class="player-num-badge">${p.black.number}</span>`}
                     <span class="player-name" style="color:#3b82f6">${p.black.isBye?'輪空':escapeHtml(p.black.name)}</span>
@@ -1984,7 +1976,6 @@ function renderPairingList(animate = false, highlightNumber = null){
         listDiv.appendChild(card);
     });
 
-    // 更新上方的進度條 (例如：進行中：剩 3 組)
     updateMatchProgress(); 
 }
 function toggleManualMode() {
