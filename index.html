@@ -886,6 +886,9 @@ function resetSysDataStruct() { sysData = { info: { eventName: "未命名賽事"
 function saveCurrentGroupData() {
     if (isViewerMode || !activeGroupId) return;
 
+    // ★★★ 新增這行：將 ID 寫入資料本身，作為身分證 ★★★
+    sysData.groupId = activeGroupId;
+
     // 1. 基本資訊
     sysData.info.eventName = document.getElementById('eventNameInput').value.trim() || "未命名賽事";
     sysData.info.eventAbbr = document.getElementById('eventAbbrInput').value.trim();
@@ -1230,9 +1233,110 @@ function applyResultFeedback(card, result, isBye) {
 }
 
 function exportJSON() { saveCurrentGroupData(); const dataStr = JSON.stringify(sysData, null, 2); const url = URL.createObjectURL(new Blob([dataStr], { type: "application/json" })); const link = document.createElement('a'); link.href = url; link.download = `${sysData.info.eventName}_備份.json`; link.click(); }
+/* --- 修改後的匯入邏輯 (支援固定 ID) --- */
 function importJSON(input) { 
-    const f=input.files[0]; if(!f)return; const r=new FileReader(); 
-    r.onload=function(e){ try { let d = JSON.parse(e.target.result); if(!d.info) d.info={eventName:d.title||"匯入", groupName:"組別"}; const newId = 'group_' + Date.now(); groups.push({ id: newId, name: d.info.eventName, groupName: d.info.groupName, color: d.settings?.themeColor||'blue', lastModified: Date.now() }); saveGroupsIndex(); d.shareId = null; localStorage.setItem(STORE_PREFIX + newId, JSON.stringify(d)); switchGroup(newId); Swal.fire('匯入成功', '', 'success'); } catch(err) { Swal.fire('錯誤', '格式錯誤', 'error'); } }; r.readAsText(f); input.value = ''; 
+    const f = input.files[0]; 
+    if (!f) return; 
+    
+    const r = new FileReader(); 
+    r.onload = function(e) { 
+        try { 
+            let d = JSON.parse(e.target.result); 
+            
+            // 檢查檔案是否損壞
+            if (!d.info) d.info = { eventName: d.title || "匯入賽事", groupName: "組別" };
+
+            // 1. 取得檔案中的 ID (如果舊版檔案沒有 ID，則視為新賽事)
+            const targetId = d.groupId || ('group_' + Date.now());
+            
+            // 2. 判斷情況
+            const isCurrentGroup = (targetId === activeGroupId);
+            const isExistingGroup = groups.some(g => g.id === targetId);
+
+            // --- 情況一：匯入的檔案就是「當前」正在操作的比賽 ---
+            if (isCurrentGroup) {
+                Swal.fire({ 
+                    title: '覆蓋當前賽事？', 
+                    html: `檢測到此檔案 ID 與當前賽事相同。<br>匯入將會<b>覆蓋</b>目前畫面上的所有進度。`, 
+                    icon: 'warning', 
+                    showCancelButton: true, 
+                    confirmButtonColor: '#ef4444', 
+                    confirmButtonText: '確定覆蓋',
+                    cancelButtonText: '取消'
+                }).then((result) => { 
+                    if (result.isConfirmed) { 
+                        finalizeImport(targetId, d); // 執行匯入
+                    }
+                });
+            } 
+            // --- 情況二：匯入其他比賽 (存在於列表中，或全新的) ---
+            else {
+                // 不需要跳警告，直接讀取
+                // 如果是列表已有的，會更新該比賽；如果是新的，會新增
+                finalizeImport(targetId, d);
+                
+                // 提示一下使用者發生了什麼事
+                const msg = isExistingGroup ? '已更新現有賽事資料' : '已匯入新賽事';
+                const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+                Toast.fire({ icon: 'success', title: msg });
+            }
+
+        } catch(err) { 
+            console.error(err);
+            Swal.fire('錯誤', '檔案格式錯誤或無法讀取', 'error'); 
+        } 
+    }; 
+    r.readAsText(f); 
+    input.value = ''; // 清空 input 讓同個檔案可以重複選
+}
+
+// 輔助函式：執行實際的寫入與切換動作
+function finalizeImport(id, data) {
+    // 1. 確保資料中有 ID
+    data.groupId = id;
+    
+    // 2. 寫入 LocalStorage (覆蓋舊資料)
+    localStorage.setItem(STORE_PREFIX + id, JSON.stringify(data));
+    
+    // 3. 更新全域索引列表 (groups)
+    const existingIndex = groups.findIndex(g => g.id === id);
+    const groupInfo = { 
+        id: id, 
+        name: data.info.eventName, 
+        groupName: data.info.groupName, 
+        color: data.settings?.themeColor || 'blue', 
+        lastModified: Date.now() 
+    };
+
+    if (existingIndex !== -1) {
+        // 更新現有列表資訊 (例如改了名字或顏色)
+        groups[existingIndex] = groupInfo;
+    } else {
+        // 新增到列表
+        groups.push(groupInfo);
+    }
+    saveGroupsIndex(); // 儲存列表
+
+    // 4. 如果不是當前比賽，就切換過去；如果是當前比賽，重新載入 UI
+    if (id !== activeGroupId) {
+        switchGroup(id);
+    } else {
+        // 重新讀取 sysData 並刷新畫面
+        sysData = data;
+        updateUI();
+        viewingRound = sysData.currentRound;
+        
+        // 刷新各區塊
+        if (sysData.currentRound > 0) renderPairingList(true);
+        else document.getElementById('pairingList').innerHTML = getEmptyStateHTML('start', '比賽尚未開始', '請重新初始化');
+        
+        // 確保按鈕狀態正確
+        updateButtonsState();
+        
+        // 如果在名次或總表頁面，也要刷新
+        if(document.getElementById('standings').classList.contains('active')) updateRankings();
+        if(document.getElementById('summary').classList.contains('active')) renderSummaryTable();
+    }
 }
 
 /* === 雙核心演算法 === */
